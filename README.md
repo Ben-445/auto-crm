@@ -17,7 +17,7 @@ The application uses Electron's desktopCapturer API for capturing screenshots.
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/crizmo/electron-screenshot.git
+    git clone https://github.com/Ben-445/auto-crm.git
     ```
 
 2. Navigate to the project directory:
