@@ -51,6 +51,12 @@ The application uses Electron's desktopCapturer API for capturing screenshots.
 - Website download link: point to the latest GitHub Release assets (e.g., `https://github.com/Ben-445/auto-crm/releases/latest`).
 - Code signing: add Apple Developer ID (macOS) and a Windows code-signing cert before shipping to users.
 
+## Custom App Icon
+
+- Replace `assets/icons/icon.png` with your logo (1024x1024 PNG, transparent background recommended).
+- Optional: add `assets/icons/icon.ico` (Windows) and `assets/icons/icon.icns` (macOS). If they’re missing, the PNG will be used and converted during packaging.
+- The app window/tray/dock will use this icon when available, and installers will pick it up via `electron-builder`.
+
 ## Usage
 
 1. Create an `uploads` folder at the root of the project

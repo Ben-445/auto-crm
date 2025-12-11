@@ -6,8 +6,10 @@ const {
   ipcMain,
   systemPreferences,
   shell,
+  nativeImage,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const path = require("path");
 const Screenshots = require("./screenshots");
 
 let mainWindow;
@@ -16,6 +18,7 @@ const screenshots = new Screenshots();
 
 app.on("ready", () => {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  const appIcon = loadAppIcon();
 
   app.commandLine.appendSwitch("disable-renderer-backgrounding");
   mainWindow = new BrowserWindow({
@@ -24,9 +27,14 @@ app.on("ready", () => {
     height: height,
     transparent: true,
     frame: false,
+    icon: appIcon,
   });
 
   mainWindow.loadFile("select_area.html");
+
+  if (process.platform === "darwin" && appIcon && app.dock) {
+    app.dock.setIcon(appIcon);
+  }
 
   setupAutoUpdater();
 
@@ -88,6 +96,25 @@ function createOverlayWindow() {
   overlayWindow.webContents.on("did-finish-load", () => {
     overlayWindow.webContents.send("window-loaded");
   });
+}
+
+function loadAppIcon() {
+  const candidateFiles = [
+    process.platform === "win32" ? "icon.ico" : null,
+    process.platform === "darwin" ? "icon.icns" : null,
+    "icon.png",
+  ].filter(Boolean);
+
+  for (const file of candidateFiles) {
+    const iconPath = path.join(__dirname, "assets", "icons", file);
+    const image = nativeImage.createFromPath(iconPath);
+    if (!image.isEmpty()) {
+      return image;
+    }
+  }
+
+  console.warn("App icon not found in assets/icons; using default Electron icon.");
+  return undefined;
 }
 
 function setupAutoUpdater() {

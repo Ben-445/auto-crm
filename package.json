@@ -25,6 +25,7 @@
   "build": {
     "appId": "com.micro.screenshotcrm",
     "productName": "Screenshot CRM",
+    "icon": "assets/icons/icon.png",
     "files": [
       "**/*"
     ],
@@ -40,6 +41,7 @@
       }
     ],
     "mac": {
+      "icon": "assets/icons/icon.png",
       "target": [
         "dmg",
         "zip"
@@ -47,6 +49,7 @@
       "category": "public.app-category.productivity"
     },
     "win": {
+      "icon": "assets/icons/icon.png",
       "target": "nsis"
     },
     "nsis": {
