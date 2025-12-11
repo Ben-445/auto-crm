@@ -38,6 +38,19 @@ The application uses Electron's desktopCapturer API for capturing screenshots.
     npm start
     ```
 
+## Distribution & Auto-Update
+
+- Build installers (unsigned dev builds): `npm run dist`
+- Publish a release to GitHub (requires `GH_TOKEN` with `repo` scope):
+
+  ```bash
+  GH_TOKEN=YOUR_TOKEN npm run publish
+  ```
+
+- The app checks GitHub Releases for updates at startup and downloads them silently; it restarts after an update is ready.
+- Website download link: point to the latest GitHub Release assets (e.g., `https://github.com/Ben-445/auto-crm/releases/latest`).
+- Code signing: add Apple Developer ID (macOS) and a Windows code-signing cert before shipping to users.
+
 ## Usage
 
 1. Create an `uploads` folder at the root of the project

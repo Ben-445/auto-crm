@@ -5,17 +5,54 @@
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "electron . --disable-gpu"
+    "start": "electron . --disable-gpu",
+    "dist": "electron-builder",
+    "publish": "electron-builder --publish always"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^29.1.4"
+    "electron": "^39.2.6",
+    "electron-builder": "^25.1.8"
   },
   "dependencies": {
     "axios": "^1.6.8",
+    "electron-updater": "^6.3.9",
     "node-screenshots": "^0.1.9",
     "path": "^0.12.7"
+  },
+  "build": {
+    "appId": "com.micro.screenshotcrm",
+    "productName": "Screenshot CRM",
+    "files": [
+      "**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Ben-445",
+        "repo": "auto-crm",
+        "releaseType": "release"
+      }
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false
+    }
   }
 }

@@ -7,6 +7,7 @@ const {
   systemPreferences,
   shell,
 } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const Screenshots = require("./screenshots");
 
 let mainWindow;
@@ -27,6 +28,8 @@ app.on("ready", () => {
 
   mainWindow.loadFile("select_area.html");
 
+  setupAutoUpdater();
+
   globalShortcut.register("alt+q", () => {
     if (process.platform === "darwin") {
       // Check screen capture permission status on macOS:
@@ -42,7 +45,11 @@ app.on("ready", () => {
         return;
       }
     }
-    mainWindow.show();
+    // Only show the overlay window for selection; keep the hidden main window untouched.
+    // This avoids leaving an extra transparent window focused with a crosshair cursor.
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.close();
+    }
     createOverlayWindow();
   });
 });
@@ -72,6 +79,10 @@ function createOverlayWindow() {
 
   overlayWindow.on("closed", () => {
     overlayWindow = null;
+    // Ensure the background window stays hidden so the cursor resets to the previous app.
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.hide();
+    }
   });
 
   overlayWindow.webContents.on("did-finish-load", () => {
@@ -79,15 +90,58 @@ function createOverlayWindow() {
   });
 }
 
+function setupAutoUpdater() {
+  if (!app.isPackaged) {
+    console.log("Auto-update disabled in development mode.");
+    return;
+  }
+
+  autoUpdater.autoDownload = true;
+
+  autoUpdater.on("checking-for-update", () => {
+    console.log("Checking for updates...");
+  });
+
+  autoUpdater.on("update-available", (info) => {
+    console.log("Update available:", info?.version || "unknown version");
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    console.log("No updates available.");
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    console.log(
+      `Download speed: ${Math.round(progress.bytesPerSecond / 1024)} KB/s, ` +
+        `Downloaded ${Math.round(progress.percent)}%`
+    );
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    console.log("Update downloaded; will install on restart.", info?.version);
+    autoUpdater.quitAndInstall();
+  });
+
+  autoUpdater.on("error", (err) => {
+    console.error("Auto-update error:", err);
+  });
+
+  autoUpdater.checkForUpdatesAndNotify();
+}
+
 ipcMain.on("area-selected", (event, args) => {
   screenshots.captureArea(args.x, args.y, args.width, args.height);
   console.log(args);
-  overlayWindow.close();
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close();
+  }
 });
 
 ipcMain.on("cancel-selection", () => {
   if (overlayWindow) {
     console.log("Cancel selection");
-    overlayWindow.close();
+    if (!overlayWindow.isDestroyed()) {
+      overlayWindow.close();
+    }
   }
 });
