@@ -29,6 +29,8 @@ jobs:
 
       - name: Build & publish
         env:
-          GH_TOKEN: ${{ secrets.SENDTOCRM }}
+          # Use GitHub Actions' built-in token rather than a PAT.
+          # This token's permissions are controlled by the `permissions:` block above.
+          GH_TOKEN: ${{ github.token }}
         run: npm run publish
 
