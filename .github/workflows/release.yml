@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   build-and-publish:
     strategy:
@@ -26,6 +29,6 @@ jobs:
 
       - name: Build & publish
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.SENDTOCRM }}
         run: npm run publish
 
