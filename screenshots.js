@@ -1,4 +1,4 @@
-const { desktopCapturer, screen, shell, nativeImage } = require("electron");
+const { desktopCapturer, screen, shell, nativeImage, app } = require("electron");
 const fs = require("fs");
 const path = require("path");
 const EventEmitter = require("events");
@@ -45,16 +45,14 @@ class Screenshots extends EventEmitter {
                   height: Math.round(this.bounds.height * scaleFactor),
                 });
               const timestamp = new Date().getTime();
-              const screenshotPath = path.join(
-                __dirname,
-                "uploads",
-                `screenshot_${timestamp}.png`
-              );
 
-              // Create the uploads directory if it doesn't exist
-              if (!fs.existsSync(path.join(__dirname, "uploads"))) {
-                fs.mkdirSync(path.join(__dirname, "uploads"));
-              }
+              // IMPORTANT:
+              // In packaged apps, `__dirname` points inside the asar bundle and is not writable.
+              // Save to a user-writable directory instead (Pictures/Screenshot CRM by default).
+              const baseDir = path.join(app.getPath("pictures"), "Screenshot CRM");
+              const screenshotPath = path.join(baseDir, `screenshot_${timestamp}.png`);
+
+              fs.mkdirSync(baseDir, { recursive: true });
 
               fs.writeFile(screenshotPath, croppedImage.toPNG(), (error) => {
                 if (error) {
@@ -63,7 +61,8 @@ class Screenshots extends EventEmitter {
                 }
                 this.emit("ok", croppedImage.toPNG(), this.bounds);
                 this.emit("afterSave", croppedImage.toPNG(), this.bounds, true);
-                shell.openExternal(`file://${screenshotPath}`);
+                // Show the saved file in the OS file manager.
+                shell.showItemInFolder(screenshotPath);
               });
             }
           }

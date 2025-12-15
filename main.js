@@ -13,6 +13,7 @@ const {
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
+const log = require("electron-log");
 const Screenshots = require("./screenshots");
 
 let mainWindow;
@@ -140,7 +141,11 @@ function buildTrayMenu() {
           await autoUpdater.checkForUpdatesAndNotify();
         } catch (e) {
           console.error("Manual update check failed:", e);
-          notify("Update check failed", "Couldn’t check for updates. See logs.");
+          log.error("Manual update check failed:", e);
+          notify(
+            "Update check failed",
+            `Couldn’t check for updates: ${String(e?.message || e)}`
+          );
         }
       },
     },
@@ -148,6 +153,21 @@ function buildTrayMenu() {
       label: restartLabel,
       enabled: updateDownloaded,
       click: () => autoUpdater.quitAndInstall(),
+    },
+    {
+      label: "Open logs",
+      click: () => {
+        try {
+          const logFilePath = log.transports.file.getFile().path;
+          shell.showItemInFolder(logFilePath);
+        } catch (e) {
+          console.error("Failed to open logs:", e);
+        }
+      },
+    },
+    {
+      label: "Open downloads page",
+      click: () => shell.openExternal("https://github.com/Ben-445/auto-crm/releases/latest"),
     },
     { type: "separator" },
     {
@@ -209,19 +229,26 @@ function setupAutoUpdater() {
     return;
   }
 
+  // Persist auto-update logs to disk so packaged builds are debuggable.
+  log.transports.file.level = "info";
+  autoUpdater.logger = log;
+
   autoUpdater.autoDownload = true;
 
   autoUpdater.on("checking-for-update", () => {
     console.log("Checking for updates...");
+    log.info("Checking for updates...");
   });
 
   autoUpdater.on("update-available", (info) => {
     console.log("Update available:", info?.version || "unknown version");
+    log.info("Update available:", info?.version || "unknown version");
     notify("Update available", `Downloading version ${info?.version || ""}`.trim());
   });
 
   autoUpdater.on("update-not-available", () => {
     console.log("No updates available.");
+    log.info("No updates available.");
   });
 
   autoUpdater.on("download-progress", (progress) => {
@@ -229,12 +256,19 @@ function setupAutoUpdater() {
       `Download speed: ${Math.round(progress.bytesPerSecond / 1024)} KB/s, ` +
         `Downloaded ${Math.round(progress.percent)}%`
     );
+    log.info(
+      "Download progress",
+      Math.round(progress.percent),
+      "bytesPerSecond",
+      progress.bytesPerSecond
+    );
   });
 
   autoUpdater.on("update-downloaded", (info) => {
     downloadedUpdateVersion = info?.version || null;
     updateDownloaded = true;
     console.log("Update downloaded; ready to install.", downloadedUpdateVersion);
+    log.info("Update downloaded; ready to install.", downloadedUpdateVersion);
     refreshTrayMenu();
     notify(
       "Update ready",
@@ -246,10 +280,14 @@ function setupAutoUpdater() {
 
   autoUpdater.on("error", (err) => {
     console.error("Auto-update error:", err);
-    notify("Update error", "Something went wrong while updating. See logs.");
+    log.error("Auto-update error:", err);
+    refreshTrayMenu();
+    notify("Update error", `Update failed: ${String(err?.message || err)}`);
   });
 
-  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.checkForUpdatesAndNotify().catch((e) => {
+    log.error("Startup update check failed:", e);
+  });
 }
 
 ipcMain.on("area-selected", (event, args) => {
