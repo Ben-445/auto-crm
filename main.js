@@ -114,7 +114,7 @@ function setupTray() {
   }
 
   tray = new Tray(icon);
-  tray.setToolTip(`Screenshot CRM (${app.getVersion()})`);
+  tray.setToolTip(`Send to CRM (${app.getVersion()})`);
   tray.setContextMenu(buildTrayMenu());
 
   tray.on("click", () => {
@@ -130,7 +130,7 @@ function buildTrayMenu() {
 
   return Menu.buildFromTemplate([
     {
-      label: `Screenshot CRM — v${version}`,
+      label: `Send to CRM — v${version}`,
       enabled: false,
     },
     { type: "separator" },
@@ -179,7 +179,7 @@ function buildTrayMenu() {
 
 function refreshTrayMenu() {
   if (!tray) return;
-  tray.setToolTip(`Screenshot CRM (${app.getVersion()})`);
+  tray.setToolTip(`Send to CRM (${app.getVersion()})`);
   tray.setContextMenu(buildTrayMenu());
 }
 

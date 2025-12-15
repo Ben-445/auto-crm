@@ -48,8 +48,8 @@ class Screenshots extends EventEmitter {
 
               // IMPORTANT:
               // In packaged apps, `__dirname` points inside the asar bundle and is not writable.
-              // Save to a user-writable directory instead (Pictures/Screenshot CRM by default).
-              const baseDir = path.join(app.getPath("pictures"), "Screenshot CRM");
+              // Save to a user-writable directory instead (Pictures/Send to CRM by default).
+              const baseDir = path.join(app.getPath("pictures"), "Send to CRM");
               const screenshotPath = path.join(baseDir, `screenshot_${timestamp}.png`);
 
               fs.mkdirSync(baseDir, { recursive: true });
