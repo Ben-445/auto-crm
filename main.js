@@ -7,6 +7,9 @@ const {
   systemPreferences,
   shell,
   nativeImage,
+  Tray,
+  Menu,
+  Notification,
 } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
@@ -14,6 +17,9 @@ const Screenshots = require("./screenshots");
 
 let mainWindow;
 let overlayWindow;
+let tray = null;
+let updateDownloaded = false;
+let downloadedUpdateVersion = null;
 const screenshots = new Screenshots();
 
 app.on("ready", () => {
@@ -36,6 +42,7 @@ app.on("ready", () => {
     app.dock.setIcon(appIcon);
   }
 
+  setupTray();
   setupAutoUpdater();
 
   globalShortcut.register("alt+q", () => {
@@ -98,6 +105,74 @@ function createOverlayWindow() {
   });
 }
 
+function setupTray() {
+  const icon = loadTrayIcon();
+  if (!icon) {
+    console.warn("Tray icon not available; tray will not be created.");
+    return;
+  }
+
+  tray = new Tray(icon);
+  tray.setToolTip(`Screenshot CRM (${app.getVersion()})`);
+  tray.setContextMenu(buildTrayMenu());
+
+  tray.on("click", () => {
+    tray.popUpContextMenu();
+  });
+}
+
+function buildTrayMenu() {
+  const version = app.getVersion();
+  const restartLabel = downloadedUpdateVersion
+    ? `Restart to update (${downloadedUpdateVersion})`
+    : "Restart to apply update";
+
+  return Menu.buildFromTemplate([
+    {
+      label: `Screenshot CRM — v${version}`,
+      enabled: false,
+    },
+    { type: "separator" },
+    {
+      label: "Check for updates",
+      click: async () => {
+        try {
+          await autoUpdater.checkForUpdatesAndNotify();
+        } catch (e) {
+          console.error("Manual update check failed:", e);
+          notify("Update check failed", "Couldn’t check for updates. See logs.");
+        }
+      },
+    },
+    {
+      label: restartLabel,
+      enabled: updateDownloaded,
+      click: () => autoUpdater.quitAndInstall(),
+    },
+    { type: "separator" },
+    {
+      label: "Quit",
+      click: () => app.quit(),
+    },
+  ]);
+}
+
+function refreshTrayMenu() {
+  if (!tray) return;
+  tray.setToolTip(`Screenshot CRM (${app.getVersion()})`);
+  tray.setContextMenu(buildTrayMenu());
+}
+
+function notify(title, body) {
+  try {
+    if (Notification.isSupported()) {
+      new Notification({ title, body }).show();
+    }
+  } catch (e) {
+    // Notification support varies by OS and environment; logs are sufficient.
+  }
+}
+
 function loadAppIcon() {
   const candidateFiles = [
     process.platform === "win32" ? "icon.ico" : null,
@@ -117,6 +192,17 @@ function loadAppIcon() {
   return undefined;
 }
 
+function loadTrayIcon() {
+  const baseIcon = loadAppIcon();
+  if (!baseIcon || baseIcon.isEmpty()) return null;
+
+  if (process.platform === "win32") {
+    return baseIcon.resize({ width: 16, height: 16 });
+  }
+
+  return baseIcon;
+}
+
 function setupAutoUpdater() {
   if (!app.isPackaged) {
     console.log("Auto-update disabled in development mode.");
@@ -131,6 +217,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on("update-available", (info) => {
     console.log("Update available:", info?.version || "unknown version");
+    notify("Update available", `Downloading version ${info?.version || ""}`.trim());
   });
 
   autoUpdater.on("update-not-available", () => {
@@ -145,12 +232,21 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on("update-downloaded", (info) => {
-    console.log("Update downloaded; will install on restart.", info?.version);
-    autoUpdater.quitAndInstall();
+    downloadedUpdateVersion = info?.version || null;
+    updateDownloaded = true;
+    console.log("Update downloaded; ready to install.", downloadedUpdateVersion);
+    refreshTrayMenu();
+    notify(
+      "Update ready",
+      downloadedUpdateVersion
+        ? `Version ${downloadedUpdateVersion} is ready. Restart to apply.`
+        : "An update is ready. Restart to apply."
+    );
   });
 
   autoUpdater.on("error", (err) => {
     console.error("Auto-update error:", err);
+    notify("Update error", "Something went wrong while updating. See logs.");
   });
 
   autoUpdater.checkForUpdatesAndNotify();
