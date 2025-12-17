@@ -14,14 +14,26 @@ const {
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const log = require("electron-log");
+const Store = require("electron-store");
 const Screenshots = require("./screenshots");
 
 let mainWindow;
 let overlayWindow;
+let settingsWindow = null;
 let tray = null;
 let updateDownloaded = false;
 let downloadedUpdateVersion = null;
 const screenshots = new Screenshots();
+
+const DEFAULT_SHORTCUT = "CommandOrControl+Shift+S";
+const store = new Store({
+  name: "settings",
+  defaults: {
+    authToken: "",
+    shortcut: DEFAULT_SHORTCUT,
+    startOnLogin: false,
+  },
+});
 
 app.on("ready", () => {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -45,30 +57,71 @@ app.on("ready", () => {
 
   setupTray();
   setupAutoUpdater();
+  applyStartOnLoginFromStore();
+  registerShortcutFromStore();
 
-  globalShortcut.register("alt+q", () => {
-    if (process.platform === "darwin") {
-      // Check screen capture permission status on macOS:
-      const status = systemPreferences.getMediaAccessStatus("screen");
-      if (status !== "granted") {
-        // Inform the user and open the Screen Recording settings page
-        console.log(
-          "Screen capture permission not granted. Please enable it in System Preferences."
-        );
-        shell.openExternal(
-          "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenRecording"
-        );
-        return;
-      }
-    }
-    // Only show the overlay window for selection; keep the hidden main window untouched.
-    // This avoids leaving an extra transparent window focused with a crosshair cursor.
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.close();
-    }
-    createOverlayWindow();
-  });
+  // First run: if user hasn't paired yet, open Settings automatically.
+  if (!String(store.get("authToken") || "").trim()) {
+    openSettingsWindow();
+  }
+
+  // (global shortcut registration is now driven by stored settings)
 });
+
+function canCaptureScreenOrPrompt() {
+  if (process.platform !== "darwin") return true;
+  const status = systemPreferences.getMediaAccessStatus("screen");
+  if (status === "granted") return true;
+
+  console.log(
+    "Screen capture permission not granted. Please enable it in System Preferences."
+  );
+  shell.openExternal(
+    "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenRecording"
+  );
+  return false;
+}
+
+function onShortcutPressed() {
+  if (!canCaptureScreenOrPrompt()) return;
+
+  // Only show the overlay window for selection; keep the hidden main window untouched.
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.close();
+  }
+  createOverlayWindow();
+}
+
+function registerShortcutFromStore() {
+  const shortcut = String(store.get("shortcut") || DEFAULT_SHORTCUT).trim();
+
+  try {
+    globalShortcut.unregisterAll();
+  } catch (e) {
+    // ignore
+  }
+
+  const ok = globalShortcut.register(shortcut, onShortcutPressed);
+  if (!ok) {
+    console.warn("Failed to register shortcut:", shortcut);
+    // Fallback to default if the saved shortcut is invalid/unavailable.
+    if (shortcut !== DEFAULT_SHORTCUT) {
+      store.set("shortcut", DEFAULT_SHORTCUT);
+      globalShortcut.register(DEFAULT_SHORTCUT, onShortcutPressed);
+    }
+  }
+}
+
+function applyStartOnLoginFromStore() {
+  const openAtLogin = Boolean(store.get("startOnLogin"));
+  try {
+    app.setLoginItemSettings({
+      openAtLogin,
+    });
+  } catch (e) {
+    console.warn("Failed to apply start-on-login setting:", e);
+  }
+}
 
 function createOverlayWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
@@ -106,6 +159,35 @@ function createOverlayWindow() {
   });
 }
 
+function openSettingsWindow() {
+  const appIcon = loadAppIcon();
+
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.show();
+    settingsWindow.focus();
+    return;
+  }
+
+  settingsWindow = new BrowserWindow({
+    width: 920,
+    height: 720,
+    minWidth: 760,
+    minHeight: 600,
+    title: "Send to CRM — Settings",
+    icon: appIcon,
+    show: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+
+  settingsWindow.loadFile("settings.html");
+  settingsWindow.on("closed", () => {
+    settingsWindow = null;
+  });
+}
+
 function setupTray() {
   const icon = loadTrayIcon();
   if (!icon) {
@@ -134,6 +216,10 @@ function buildTrayMenu() {
       enabled: false,
     },
     { type: "separator" },
+    {
+      label: "Open Settings",
+      click: () => openSettingsWindow(),
+    },
     {
       label: "Check for updates",
       click: async () => {
@@ -289,6 +375,86 @@ function setupAutoUpdater() {
     log.error("Startup update check failed:", e);
   });
 }
+
+// Settings IPC
+ipcMain.handle("settings:get", () => {
+  return {
+    authToken: store.get("authToken") || "",
+    shortcut: store.get("shortcut") || DEFAULT_SHORTCUT,
+    startOnLogin: Boolean(store.get("startOnLogin")),
+  };
+});
+
+ipcMain.handle("settings:set", (event, partial) => {
+  const next = partial || {};
+  if (Object.prototype.hasOwnProperty.call(next, "authToken")) {
+    store.set("authToken", String(next.authToken || ""));
+  }
+  if (Object.prototype.hasOwnProperty.call(next, "startOnLogin")) {
+    store.set("startOnLogin", Boolean(next.startOnLogin));
+    applyStartOnLoginFromStore();
+  }
+  return { ok: true };
+});
+
+ipcMain.handle("shortcut:set", (event, shortcutRaw) => {
+  const shortcut = String(shortcutRaw || "").trim();
+  if (!shortcut) return { ok: false, reason: "empty shortcut" };
+
+  // Validate availability by trying to register it temporarily.
+  try {
+    globalShortcut.unregisterAll();
+    const ok = globalShortcut.register(shortcut, onShortcutPressed);
+    if (!ok) {
+      registerShortcutFromStore();
+      return { ok: false, reason: "shortcut not available" };
+    }
+  } catch (e) {
+    registerShortcutFromStore();
+    return { ok: false, reason: String(e?.message || e) };
+  }
+
+  store.set("shortcut", shortcut);
+  refreshTrayMenu();
+  return { ok: true, shortcut };
+});
+
+ipcMain.handle("shortcut:reset", () => {
+  store.set("shortcut", DEFAULT_SHORTCUT);
+  registerShortcutFromStore();
+  return { ok: true, shortcut: DEFAULT_SHORTCUT };
+});
+
+ipcMain.handle("startup:set", (event, enabled) => {
+  try {
+    store.set("startOnLogin", Boolean(enabled));
+    applyStartOnLoginFromStore();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+ipcMain.handle("updates:check", async () => {
+  try {
+    await autoUpdater.checkForUpdatesAndNotify();
+    return { ok: true };
+  } catch (e) {
+    log.error("Manual update check failed via IPC:", e);
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+ipcMain.handle("logs:open", () => {
+  const logFilePath = log.transports.file.getFile().path;
+  shell.showItemInFolder(logFilePath);
+  return { ok: true };
+});
+
+ipcMain.handle("downloads:open", () => {
+  shell.openExternal("https://github.com/Ben-445/auto-crm/releases/latest");
+  return { ok: true };
+});
 
 ipcMain.on("area-selected", (event, args) => {
   screenshots.captureArea(args.x, args.y, args.width, args.height);

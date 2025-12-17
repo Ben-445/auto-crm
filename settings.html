@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Send to CRM — Settings</title>
+    <style>
+      :root {
+        --bg: #0b0e14;
+        --panel: #121826;
+        --text: #e8eefc;
+        --muted: #9fb0d0;
+        --border: rgba(255, 255, 255, 0.08);
+        --accent: #6ea8fe;
+        --danger: #ff6b6b;
+        --ok: #2dd4bf;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          sans-serif;
+        color: var(--text);
+        background: radial-gradient(1200px 800px at 20% 0%, #18213a 0%, var(--bg) 60%);
+      }
+
+      .container {
+        max-width: 860px;
+        padding: 24px;
+        margin: 0 auto;
+      }
+
+      .header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .title {
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 4px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .card {
+        background: rgba(18, 24, 38, 0.92);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+      }
+
+      .card h2 {
+        margin: 0 0 10px 0;
+        font-size: 15px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 180px 1fr;
+        gap: 12px;
+        align-items: center;
+        margin: 10px 0;
+      }
+
+      .label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      input[type="text"],
+      textarea {
+        width: 100%;
+        box-sizing: border-box;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(0, 0, 0, 0.2);
+        color: var(--text);
+        padding: 10px 12px;
+        outline: none;
+      }
+
+      textarea {
+        min-height: 72px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+
+      button {
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(110, 168, 254, 0.16);
+        color: var(--text);
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+
+      button.primary {
+        background: rgba(110, 168, 254, 0.26);
+        border-color: rgba(110, 168, 254, 0.35);
+      }
+
+      button.danger {
+        background: rgba(255, 107, 107, 0.14);
+        border-color: rgba(255, 107, 107, 0.35);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(0, 0, 0, 0.2);
+        color: var(--muted);
+      }
+
+      .pill.ok {
+        color: var(--ok);
+        border-color: rgba(45, 212, 191, 0.35);
+        background: rgba(45, 212, 191, 0.08);
+      }
+
+      .pill.bad {
+        color: var(--danger);
+        border-color: rgba(255, 107, 107, 0.35);
+        background: rgba(255, 107, 107, 0.08);
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 6px;
+        line-height: 1.4;
+      }
+
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .toast {
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      code {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid var(--border);
+        padding: 2px 6px;
+        border-radius: 8px;
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <div>
+          <div class="title">Send to CRM — Settings</div>
+          <div class="subtitle">
+            Pair this desktop app with your web account and configure your shortcut.
+          </div>
+        </div>
+        <div class="pill" id="statusPill">Loading…</div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h2>Account pairing</h2>
+          <div class="row">
+            <div class="label">Desktop auth token</div>
+            <div>
+              <textarea
+                id="token"
+                placeholder="Paste the token/code from your web dashboard…"
+              ></textarea>
+              <div class="hint">
+                For now we store this locally. Later we’ll validate it with your backend.
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" id="saveToken">Save token</button>
+            <button class="danger" id="clearToken">Clear token</button>
+          </div>
+          <div class="toast" id="tokenMsg"></div>
+        </div>
+
+        <div class="card">
+          <h2>Shortcut</h2>
+
+          <div class="row">
+            <div class="label">Current shortcut</div>
+            <div><code id="currentShortcut">…</code></div>
+          </div>
+
+          <div class="row">
+            <div class="label">New shortcut</div>
+            <div>
+              <input
+                id="shortcut"
+                type="text"
+                placeholder="Example: CommandOrControl+Shift+S"
+              />
+              <div class="hint">
+                Use Electron accelerator format. Works on Windows + macOS. Default:
+                <code>CommandOrControl+Shift+S</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" id="applyShortcut">Apply shortcut</button>
+            <button id="resetShortcut">Reset to default</button>
+          </div>
+          <div class="toast" id="shortcutMsg"></div>
+        </div>
+
+        <div class="card">
+          <h2>Startup & tools</h2>
+
+          <div class="row">
+            <div class="label">Start on login</div>
+            <div class="toggle">
+              <input id="startOnLogin" type="checkbox" />
+              <span class="hint">Launch Send to CRM when you log in.</span>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="checkUpdates">Check for updates</button>
+            <button id="openLogs">Open logs</button>
+            <button id="openDownloads">Open downloads page</button>
+          </div>
+          <div class="toast" id="toolsMsg"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const { ipcRenderer } = require("electron");
+
+      const els = {
+        statusPill: document.getElementById("statusPill"),
+        token: document.getElementById("token"),
+        saveToken: document.getElementById("saveToken"),
+        clearToken: document.getElementById("clearToken"),
+        tokenMsg: document.getElementById("tokenMsg"),
+
+        currentShortcut: document.getElementById("currentShortcut"),
+        shortcut: document.getElementById("shortcut"),
+        applyShortcut: document.getElementById("applyShortcut"),
+        resetShortcut: document.getElementById("resetShortcut"),
+        shortcutMsg: document.getElementById("shortcutMsg"),
+
+        startOnLogin: document.getElementById("startOnLogin"),
+        checkUpdates: document.getElementById("checkUpdates"),
+        openLogs: document.getElementById("openLogs"),
+        openDownloads: document.getElementById("openDownloads"),
+        toolsMsg: document.getElementById("toolsMsg"),
+      };
+
+      function setStatus(paired) {
+        els.statusPill.classList.remove("ok", "bad");
+        if (paired) {
+          els.statusPill.textContent = "Paired";
+          els.statusPill.classList.add("ok");
+        } else {
+          els.statusPill.textContent = "Not paired";
+          els.statusPill.classList.add("bad");
+        }
+      }
+
+      function msg(el, text) {
+        el.textContent = text || "";
+      }
+
+      async function load() {
+        const state = await ipcRenderer.invoke("settings:get");
+        setStatus(Boolean(state.authToken));
+        els.token.value = state.authToken || "";
+        els.currentShortcut.textContent = state.shortcut || "—";
+        els.shortcut.value = state.shortcut || "";
+        els.startOnLogin.checked = Boolean(state.startOnLogin);
+      }
+
+      els.saveToken.addEventListener("click", async () => {
+        const token = (els.token.value || "").trim();
+        await ipcRenderer.invoke("settings:set", { authToken: token });
+        setStatus(Boolean(token));
+        msg(els.tokenMsg, token ? "Saved." : "Cleared.");
+      });
+
+      els.clearToken.addEventListener("click", async () => {
+        els.token.value = "";
+        await ipcRenderer.invoke("settings:set", { authToken: "" });
+        setStatus(false);
+        msg(els.tokenMsg, "Cleared.");
+      });
+
+      els.applyShortcut.addEventListener("click", async () => {
+        const candidate = (els.shortcut.value || "").trim();
+        if (!candidate) return msg(els.shortcutMsg, "Please enter a shortcut.");
+
+        const result = await ipcRenderer.invoke("shortcut:set", candidate);
+        if (!result.ok) {
+          msg(
+            els.shortcutMsg,
+            `Could not apply shortcut: ${result.reason || "unknown error"}`
+          );
+          return;
+        }
+
+        els.currentShortcut.textContent = result.shortcut;
+        msg(els.shortcutMsg, "Shortcut applied.");
+      });
+
+      els.resetShortcut.addEventListener("click", async () => {
+        const result = await ipcRenderer.invoke("shortcut:reset");
+        els.shortcut.value = result.shortcut;
+        els.currentShortcut.textContent = result.shortcut;
+        msg(els.shortcutMsg, "Reset to default.");
+      });
+
+      els.startOnLogin.addEventListener("change", async () => {
+        const enabled = Boolean(els.startOnLogin.checked);
+        const result = await ipcRenderer.invoke("startup:set", enabled);
+        msg(
+          els.toolsMsg,
+          result.ok ? "Saved." : `Couldn’t apply setting: ${result.reason || "unknown"}`
+        );
+      });
+
+      els.checkUpdates.addEventListener("click", async () => {
+        const result = await ipcRenderer.invoke("updates:check");
+        msg(els.toolsMsg, result.ok ? "Checking…" : `Failed: ${result.reason}`);
+      });
+
+      els.openLogs.addEventListener("click", async () => {
+        await ipcRenderer.invoke("logs:open");
+      });
+
+      els.openDownloads.addEventListener("click", async () => {
+        await ipcRenderer.invoke("downloads:open");
+      });
+
+      load().catch((e) => {
+        setStatus(false);
+        msg(els.toolsMsg, `Failed to load settings: ${String(e?.message || e)}`);
+      });
+    </script>
+  </body>
+</html>
+
