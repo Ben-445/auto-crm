@@ -14,7 +14,7 @@ const {
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const log = require("electron-log");
-const Store = require("electron-store");
+const ElectronStore = require("electron-store");
 const Screenshots = require("./screenshots");
 
 let mainWindow;
@@ -26,6 +26,8 @@ let downloadedUpdateVersion = null;
 const screenshots = new Screenshots();
 
 const DEFAULT_SHORTCUT = "CommandOrControl+Shift+S";
+// electron-store can export either the constructor directly (CJS) or under `.default` (ESM interop).
+const Store = ElectronStore?.default ?? ElectronStore;
 const store = new Store({
   name: "settings",
   defaults: {
