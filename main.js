@@ -35,6 +35,7 @@ const store = new Store({
     authToken: "",
     shortcut: DEFAULT_SHORTCUT,
     startOnLogin: true,
+    startOnLoginUserSet: false,
   },
 });
 
@@ -60,8 +61,8 @@ app.on("ready", () => {
 
   setupTray();
   setupAutoUpdater();
-  // If this is an existing install from before we had this setting, default it ON.
-  if (!store.has("startOnLogin")) {
+  // Default "start on login" to ON unless the user has explicitly changed it.
+  if (!Boolean(store.get("startOnLoginUserSet"))) {
     store.set("startOnLogin", true);
   }
   applyStartOnLoginFromStore();
@@ -385,12 +386,15 @@ function setupAutoUpdater() {
 
 // Settings IPC
 ipcMain.handle("settings:get", () => {
+  const loginSettings = app.getLoginItemSettings();
   return {
     platform: process.platform,
     defaultShortcut: DEFAULT_SHORTCUT,
     authToken: store.get("authToken") || "",
     shortcut: store.get("shortcut") || DEFAULT_SHORTCUT,
     startOnLogin: Boolean(store.get("startOnLogin")),
+    effectiveStartOnLogin: Boolean(loginSettings?.openAtLogin),
+    startOnLoginUserSet: Boolean(store.get("startOnLoginUserSet")),
   };
 });
 
@@ -437,8 +441,10 @@ ipcMain.handle("shortcut:reset", () => {
 ipcMain.handle("startup:set", (event, enabled) => {
   try {
     store.set("startOnLogin", Boolean(enabled));
+    store.set("startOnLoginUserSet", true);
     applyStartOnLoginFromStore();
-    return { ok: true };
+    const loginSettings = app.getLoginItemSettings();
+    return { ok: true, effectiveStartOnLogin: Boolean(loginSettings?.openAtLogin) };
   } catch (e) {
     return { ok: false, reason: String(e?.message || e) };
   }

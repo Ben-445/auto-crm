@@ -443,7 +443,16 @@
         els.currentShortcut.textContent = acceleratorToDisplay(state.shortcut, state.platform);
         els.shortcutHidden.value = state.shortcut || "";
         els.shortcutCapture.textContent = acceleratorToDisplay(state.shortcut, state.platform);
-        els.startOnLogin.checked = Boolean(state.startOnLogin);
+        // Reflect the real OS setting (what users actually care about).
+        els.startOnLogin.checked = Boolean(
+          state.effectiveStartOnLogin ?? state.startOnLogin
+        );
+        msg(
+          els.startupMsg,
+          state.startOnLoginUserSet
+            ? ""
+            : "Default is ON unless you switch it off."
+        );
       }
 
       els.saveToken.addEventListener("click", async () => {
@@ -493,7 +502,11 @@
         const result = await ipcRenderer.invoke("startup:set", enabled);
         msg(
           els.startupMsg,
-          result.ok ? "Saved." : `Couldn’t apply setting: ${result.reason || "unknown"}`
+          result.ok
+            ? `Saved. (Windows setting is now ${
+                result.effectiveStartOnLogin ? "ON" : "OFF"
+              })`
+            : `Couldn’t apply setting: ${result.reason || "unknown"}`
         );
       });
 
