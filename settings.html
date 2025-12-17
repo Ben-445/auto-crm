@@ -27,21 +27,18 @@
       }
 
       .container {
-        max-width: 860px;
-        padding: 24px;
-        margin: 0 auto;
+        height: 100%;
+        display: grid;
+        grid-template-columns: 220px 1fr;
       }
 
       .header {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 16px;
-        margin-bottom: 18px;
+        padding: 18px 16px 14px 16px;
+        border-bottom: 1px solid var(--border);
       }
 
       .title {
-        font-size: 22px;
+        font-size: 18px;
         font-weight: 700;
       }
 
@@ -51,10 +48,35 @@
         margin-top: 4px;
       }
 
-      .grid {
-        display: grid;
-        grid-template-columns: 1fr;
-        gap: 14px;
+      .sidebar {
+        border-right: 1px solid var(--border);
+        background: rgba(0, 0, 0, 0.12);
+        display: flex;
+        flex-direction: column;
+      }
+
+      .nav {
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .nav button {
+        width: 100%;
+        text-align: left;
+        padding: 10px 12px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .nav button.active {
+        background: rgba(110, 168, 254, 0.22);
+        border-color: rgba(110, 168, 254, 0.35);
+      }
+
+      .content {
+        padding: 18px;
+        overflow: auto;
       }
 
       .card {
@@ -71,7 +93,7 @@
 
       .row {
         display: grid;
-        grid-template-columns: 180px 1fr;
+        grid-template-columns: 160px 1fr;
         gap: 12px;
         align-items: center;
         margin: 10px 0;
@@ -95,7 +117,7 @@
       }
 
       textarea {
-        min-height: 72px;
+        min-height: 64px;
         resize: vertical;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
           "Liberation Mono", "Courier New", monospace;
@@ -171,6 +193,32 @@
         color: var(--muted);
       }
 
+      .sectionTitle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 0 0 10px 0;
+      }
+
+      .sectionTitle h2 {
+        margin: 0;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .kbd {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        border: 1px solid var(--border);
+        background: rgba(0, 0, 0, 0.25);
+        padding: 10px 12px;
+        border-radius: 10px;
+      }
+
       code {
         background: rgba(0, 0, 0, 0.25);
         border: 1px solid var(--border);
@@ -182,78 +230,88 @@
   </head>
   <body>
     <div class="container">
-      <div class="header">
-        <div>
-          <div class="title">Send to CRM — Settings</div>
-          <div class="subtitle">
-            Pair this desktop app with your web account and configure your shortcut.
+      <div class="sidebar">
+        <div class="header">
+          <div class="title">Send to CRM</div>
+          <div class="subtitle">Settings</div>
+          <div style="margin-top: 10px">
+            <div class="pill" id="statusPill">Loading…</div>
           </div>
         </div>
-        <div class="pill" id="statusPill">Loading…</div>
+
+        <div class="nav">
+          <button id="tabAccount" class="active">Account</button>
+          <button id="tabShortcut">Shortcut</button>
+          <button id="tabStartup">Startup</button>
+          <button id="tabTools">Tools</button>
+        </div>
       </div>
 
-      <div class="grid">
-        <div class="card">
-          <h2>Account pairing</h2>
+      <div class="content">
+        <div id="panelAccount" class="card">
+          <div class="sectionTitle">
+            <h2>Account</h2>
+          </div>
           <div class="row">
-            <div class="label">Desktop auth token</div>
+            <div class="label">Desktop token</div>
             <div>
-              <textarea
-                id="token"
-                placeholder="Paste the token/code from your web dashboard…"
-              ></textarea>
-              <div class="hint">
-                For now we store this locally. Later we’ll validate it with your backend.
-              </div>
+              <textarea id="token" placeholder="Paste your token from the web app…"></textarea>
+              <div class="hint">Stored locally for now (backend validation later).</div>
             </div>
           </div>
-
           <div class="actions">
-            <button class="primary" id="saveToken">Save token</button>
-            <button class="danger" id="clearToken">Clear token</button>
+            <button class="primary" id="saveToken">Save</button>
+            <button class="danger" id="clearToken">Clear</button>
           </div>
           <div class="toast" id="tokenMsg"></div>
         </div>
 
-        <div class="card">
-          <h2>Shortcut</h2>
-
-          <div class="row">
-            <div class="label">Current shortcut</div>
-            <div><code id="currentShortcut">…</code></div>
+        <div id="panelShortcut" class="card hidden">
+          <div class="sectionTitle">
+            <h2>Shortcut</h2>
+            <div class="pill" id="osPill">…</div>
           </div>
 
           <div class="row">
-            <div class="label">New shortcut</div>
+            <div class="label">Current</div>
+            <div class="kbd" id="currentShortcut">…</div>
+          </div>
+
+          <div class="row">
+            <div class="label">Set new</div>
             <div>
-              <input
-                id="shortcut"
-                type="text"
-                placeholder="Example: CommandOrControl+Shift+S"
-              />
-              <div class="hint">
-                Use Electron accelerator format. Works on Windows + macOS. Default:
-                <code>CommandOrControl+Shift+S</code>
-              </div>
+              <div class="kbd" id="shortcutCapture" tabindex="0">Click here, then press your shortcut…</div>
+              <div class="hint">Tip: include Ctrl/Cmd/Alt/Shift to avoid conflicts.</div>
+              <input id="shortcutHidden" type="text" style="display:none" />
             </div>
           </div>
 
           <div class="actions">
-            <button class="primary" id="applyShortcut">Apply shortcut</button>
+            <button class="primary" id="applyShortcut">Apply</button>
             <button id="resetShortcut">Reset to default</button>
           </div>
           <div class="toast" id="shortcutMsg"></div>
         </div>
 
-        <div class="card">
-          <h2>Startup & tools</h2>
+        <div id="panelStartup" class="card hidden">
+          <div class="sectionTitle">
+            <h2>Startup</h2>
+          </div>
 
           <div class="row">
             <div class="label">Start on login</div>
             <div class="toggle">
               <input id="startOnLogin" type="checkbox" />
-              <span class="hint">Launch Send to CRM when you log in.</span>
+              <span class="hint">Launch automatically when you log in.</span>
             </div>
+          </div>
+
+          <div class="toast" id="startupMsg"></div>
+        </div>
+
+        <div id="panelTools" class="card hidden">
+          <div class="sectionTitle">
+            <h2>Tools</h2>
           </div>
 
           <div class="actions">
@@ -271,18 +329,30 @@
 
       const els = {
         statusPill: document.getElementById("statusPill"),
+        tabAccount: document.getElementById("tabAccount"),
+        tabShortcut: document.getElementById("tabShortcut"),
+        tabStartup: document.getElementById("tabStartup"),
+        tabTools: document.getElementById("tabTools"),
+        panelAccount: document.getElementById("panelAccount"),
+        panelShortcut: document.getElementById("panelShortcut"),
+        panelStartup: document.getElementById("panelStartup"),
+        panelTools: document.getElementById("panelTools"),
+        osPill: document.getElementById("osPill"),
+
         token: document.getElementById("token"),
         saveToken: document.getElementById("saveToken"),
         clearToken: document.getElementById("clearToken"),
         tokenMsg: document.getElementById("tokenMsg"),
 
         currentShortcut: document.getElementById("currentShortcut"),
-        shortcut: document.getElementById("shortcut"),
+        shortcutCapture: document.getElementById("shortcutCapture"),
+        shortcutHidden: document.getElementById("shortcutHidden"),
         applyShortcut: document.getElementById("applyShortcut"),
         resetShortcut: document.getElementById("resetShortcut"),
         shortcutMsg: document.getElementById("shortcutMsg"),
 
         startOnLogin: document.getElementById("startOnLogin"),
+        startupMsg: document.getElementById("startupMsg"),
         checkUpdates: document.getElementById("checkUpdates"),
         openLogs: document.getElementById("openLogs"),
         openDownloads: document.getElementById("openDownloads"),
@@ -304,12 +374,75 @@
         el.textContent = text || "";
       }
 
+      function activateTab(which) {
+        const tabs = [
+          ["account", els.tabAccount, els.panelAccount],
+          ["shortcut", els.tabShortcut, els.panelShortcut],
+          ["startup", els.tabStartup, els.panelStartup],
+          ["tools", els.tabTools, els.panelTools],
+        ];
+        for (const [id, tabEl, panelEl] of tabs) {
+          const active = id === which;
+          tabEl.classList.toggle("active", active);
+          panelEl.classList.toggle("hidden", !active);
+        }
+      }
+
+      function osLabel(platform) {
+        if (platform === "darwin") return "macOS";
+        if (platform === "win32") return "Windows";
+        return platform;
+      }
+
+      function acceleratorToDisplay(accel, platform) {
+        if (!accel) return "—";
+        const parts = String(accel).split("+");
+        const out = parts.map((p) => {
+          if (p === "CommandOrControl") return platform === "darwin" ? "Cmd" : "Ctrl";
+          if (p === "Command") return "Cmd";
+          if (p === "Control") return "Ctrl";
+          if (p === "Option") return "Alt";
+          if (p === "Alt") return "Alt";
+          if (p === "Shift") return "Shift";
+          if (p === "Super") return "Win";
+          return p.length === 1 ? p.toUpperCase() : p;
+        });
+        return out.join(" + ");
+      }
+
+      function keyEventToAccelerator(e, platform) {
+        const mods = [];
+        if (platform === "darwin") {
+          if (e.metaKey) mods.push("Command");
+          if (e.ctrlKey) mods.push("Control");
+        } else {
+          if (e.ctrlKey) mods.push("Control");
+          if (e.metaKey) mods.push("Super");
+        }
+        if (e.altKey) mods.push(platform === "darwin" ? "Option" : "Alt");
+        if (e.shiftKey) mods.push("Shift");
+
+        const key = e.key;
+        const isModifier = ["Shift", "Control", "Alt", "Meta"].includes(key);
+        if (isModifier) return null;
+
+        let mainKey = key;
+        if (mainKey === " ") mainKey = "Space";
+        if (mainKey === "Escape") mainKey = "Esc";
+        if (mainKey.length === 1) mainKey = mainKey.toUpperCase();
+
+        if (mods.length === 0) return null;
+        return [...mods, mainKey].join("+");
+      }
+
       async function load() {
         const state = await ipcRenderer.invoke("settings:get");
         setStatus(Boolean(state.authToken));
         els.token.value = state.authToken || "";
-        els.currentShortcut.textContent = state.shortcut || "—";
-        els.shortcut.value = state.shortcut || "";
+        els.osPill.textContent = osLabel(state.platform);
+        els.currentShortcut.textContent = acceleratorToDisplay(state.shortcut, state.platform);
+        els.shortcutHidden.value = state.shortcut || "";
+        els.shortcutCapture.textContent = acceleratorToDisplay(state.shortcut, state.platform);
         els.startOnLogin.checked = Boolean(state.startOnLogin);
       }
 
@@ -328,8 +461,8 @@
       });
 
       els.applyShortcut.addEventListener("click", async () => {
-        const candidate = (els.shortcut.value || "").trim();
-        if (!candidate) return msg(els.shortcutMsg, "Please enter a shortcut.");
+        const candidate = (els.shortcutHidden.value || "").trim();
+        if (!candidate) return msg(els.shortcutMsg, "Click the box and press a shortcut.");
 
         const result = await ipcRenderer.invoke("shortcut:set", candidate);
         if (!result.ok) {
@@ -340,14 +473,18 @@
           return;
         }
 
-        els.currentShortcut.textContent = result.shortcut;
+        const state = await ipcRenderer.invoke("settings:get");
+        els.currentShortcut.textContent = acceleratorToDisplay(result.shortcut, state.platform);
+        els.shortcutCapture.textContent = acceleratorToDisplay(result.shortcut, state.platform);
         msg(els.shortcutMsg, "Shortcut applied.");
       });
 
       els.resetShortcut.addEventListener("click", async () => {
         const result = await ipcRenderer.invoke("shortcut:reset");
-        els.shortcut.value = result.shortcut;
-        els.currentShortcut.textContent = result.shortcut;
+        const state = await ipcRenderer.invoke("settings:get");
+        els.shortcutHidden.value = result.shortcut;
+        els.currentShortcut.textContent = acceleratorToDisplay(result.shortcut, state.platform);
+        els.shortcutCapture.textContent = acceleratorToDisplay(result.shortcut, state.platform);
         msg(els.shortcutMsg, "Reset to default.");
       });
 
@@ -355,7 +492,7 @@
         const enabled = Boolean(els.startOnLogin.checked);
         const result = await ipcRenderer.invoke("startup:set", enabled);
         msg(
-          els.toolsMsg,
+          els.startupMsg,
           result.ok ? "Saved." : `Couldn’t apply setting: ${result.reason || "unknown"}`
         );
       });
@@ -376,6 +513,31 @@
       load().catch((e) => {
         setStatus(false);
         msg(els.toolsMsg, `Failed to load settings: ${String(e?.message || e)}`);
+      });
+
+      // Tabs
+      els.tabAccount.addEventListener("click", () => activateTab("account"));
+      els.tabShortcut.addEventListener("click", () => activateTab("shortcut"));
+      els.tabStartup.addEventListener("click", () => activateTab("startup"));
+      els.tabTools.addEventListener("click", () => activateTab("tools"));
+
+      // Shortcut capture UX
+      els.shortcutCapture.addEventListener("click", () => {
+        els.shortcutCapture.focus();
+        els.shortcutCapture.textContent = "Press keys now…";
+        msg(els.shortcutMsg, "");
+      });
+      els.shortcutCapture.addEventListener("keydown", async (e) => {
+        e.preventDefault();
+        const state = await ipcRenderer.invoke("settings:get");
+        const accel = keyEventToAccelerator(e, state.platform);
+        if (!accel) {
+          els.shortcutCapture.textContent = "Include Ctrl/Cmd/Alt/Shift + a key…";
+          return;
+        }
+        els.shortcutHidden.value = accel;
+        els.shortcutCapture.textContent = acceleratorToDisplay(accel, state.platform);
+        msg(els.shortcutMsg, "Captured. Click Apply to save.");
       });
     </script>
   </body>

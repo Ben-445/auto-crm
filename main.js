@@ -25,7 +25,8 @@ let updateDownloaded = false;
 let downloadedUpdateVersion = null;
 const screenshots = new Screenshots();
 
-const DEFAULT_SHORTCUT = "CommandOrControl+Shift+S";
+const DEFAULT_SHORTCUT =
+  process.platform === "darwin" ? "Command+Shift+S" : "Control+Shift+S";
 // electron-store can export either the constructor directly (CJS) or under `.default` (ESM interop).
 const Store = ElectronStore?.default ?? ElectronStore;
 const store = new Store({
@@ -33,7 +34,7 @@ const store = new Store({
   defaults: {
     authToken: "",
     shortcut: DEFAULT_SHORTCUT,
-    startOnLogin: false,
+    startOnLogin: true,
   },
 });
 
@@ -59,6 +60,10 @@ app.on("ready", () => {
 
   setupTray();
   setupAutoUpdater();
+  // If this is an existing install from before we had this setting, default it ON.
+  if (!store.has("startOnLogin")) {
+    store.set("startOnLogin", true);
+  }
   applyStartOnLoginFromStore();
   registerShortcutFromStore();
 
@@ -381,6 +386,8 @@ function setupAutoUpdater() {
 // Settings IPC
 ipcMain.handle("settings:get", () => {
   return {
+    platform: process.platform,
+    defaultShortcut: DEFAULT_SHORTCUT,
     authToken: store.get("authToken") || "",
     shortcut: store.get("shortcut") || DEFAULT_SHORTCUT,
     startOnLogin: Boolean(store.get("startOnLogin")),
