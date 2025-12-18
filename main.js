@@ -32,6 +32,30 @@ let updateDeferredInstall = false;
 let overlayActive = false;
 const screenshots = new Screenshots();
 
+// Single-instance lock: prevent multiple tray icons / processes.
+// If a second launch happens, focus the existing instance and open Settings.
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    try {
+      // Close capture overlay if it somehow exists and focus settings instead.
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.close();
+      }
+      openSettingsWindow();
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        if (settingsWindow.isMinimized()) settingsWindow.restore();
+        settingsWindow.show();
+        settingsWindow.focus();
+      }
+    } catch (e) {
+      // ignore
+    }
+  });
+}
+
 const DEFAULT_SHORTCUT =
   process.platform === "darwin" ? "Command+Shift+S" : "Control+Shift+S";
 const DEFAULT_API_BASE_URL =
@@ -372,9 +396,9 @@ function setupTray() {
   tray.setToolTip(`Send to CRM (${app.getVersion()})`);
   tray.setContextMenu(buildTrayMenu());
 
-  tray.on("click", () => {
-    tray.popUpContextMenu();
-  });
+  // UX: left-click opens Settings, right-click opens the menu.
+  tray.on("click", () => openSettingsWindow());
+  tray.on("right-click", () => tray.popUpContextMenu());
 }
 
 function buildTrayMenu() {
