@@ -24,12 +24,21 @@ let settingsWindow = null;
 let tray = null;
 let updateDownloaded = false;
 let downloadedUpdateVersion = null;
+let updatePromptWindow = null;
+let updateCountdownTimer = null;
+let updateCountdownEndsAt = null;
+let updateSnoozedUntil = null;
+let updateDeferredInstall = false;
+let overlayActive = false;
 const screenshots = new Screenshots();
 
 const DEFAULT_SHORTCUT =
   process.platform === "darwin" ? "Command+Shift+S" : "Control+Shift+S";
 const DEFAULT_API_BASE_URL =
   "https://ukjfvashhxcovonpweye.supabase.co/functions/v1";
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+const UPDATE_MIN_CHECK_GAP_MS = 30 * 60 * 1000; // 30m
+const UPDATE_AUTO_RESTART_DELAY_MS = 5 * 60 * 1000; // 5m
 // electron-store can export either the constructor directly (CJS) or under `.default` (ESM interop).
 const Store = ElectronStore?.default ?? ElectronStore;
 const store = new Store({
@@ -42,6 +51,8 @@ const store = new Store({
     startOnLoginUserSet: false,
     // Privacy: do not persist raw screenshots locally unless explicitly enabled.
     saveScreenshotsLocally: false,
+    lastUpdateCheckAt: 0,
+    updateSnoozedUntil: 0,
   },
 });
 
@@ -67,6 +78,7 @@ app.on("ready", () => {
 
   setupTray();
   setupAutoUpdater();
+  scheduleUpdateChecks();
   // Default "start on login" to ON unless the user has explicitly changed it.
   if (!Boolean(store.get("startOnLoginUserSet"))) {
     store.set("startOnLogin", true);
@@ -277,6 +289,7 @@ function applyStartOnLoginFromStore() {
 function createOverlayWindow() {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
 
+  overlayActive = true;
   overlayWindow = new BrowserWindow({
     width,
     height,
@@ -299,6 +312,15 @@ function createOverlayWindow() {
 
   overlayWindow.on("closed", () => {
     overlayWindow = null;
+    overlayActive = false;
+    if (updateDeferredInstall && updateDownloaded) {
+      updateDeferredInstall = false;
+      try {
+        autoUpdater.quitAndInstall();
+      } catch (e) {
+        // ignore
+      }
+    }
     // Ensure the background window stays hidden so the cursor resets to the previous app.
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.hide();
@@ -360,6 +382,11 @@ function buildTrayMenu() {
   const restartLabel = downloadedUpdateVersion
     ? `Restart to update (${downloadedUpdateVersion})`
     : "Restart to apply update";
+  const snoozedUntil = Number(store.get("updateSnoozedUntil") || 0);
+  const snoozed = updateDownloaded && snoozedUntil && Date.now() < snoozedUntil;
+  const snoozeLabel = snoozed
+    ? `Update snoozed (${minutesFromNow(snoozedUntil)}m)`
+    : "Snooze update…";
 
   return Menu.buildFromTemplate([
     {
@@ -375,7 +402,8 @@ function buildTrayMenu() {
       label: "Check for updates",
       click: async () => {
         try {
-          await autoUpdater.checkForUpdatesAndNotify();
+          // Manual checks should ignore snooze.
+          await checkForUpdatesIfAllowed({ ignoreSnooze: true, force: true });
         } catch (e) {
           console.error("Manual update check failed:", e);
           log.error("Manual update check failed:", e);
@@ -390,6 +418,27 @@ function buildTrayMenu() {
       label: restartLabel,
       enabled: updateDownloaded,
       click: () => autoUpdater.quitAndInstall(),
+    },
+    {
+      label: snoozeLabel,
+      enabled: updateDownloaded,
+      submenu: [
+        {
+          label: "Snooze 15 minutes",
+          enabled: updateDownloaded,
+          click: () => snoozeUpdate(15),
+        },
+        {
+          label: "Snooze 1 hour",
+          enabled: updateDownloaded,
+          click: () => snoozeUpdate(60),
+        },
+        {
+          label: "Show restart prompt",
+          enabled: updateDownloaded,
+          click: () => openUpdatePromptWindow(),
+        },
+      ],
     },
     {
       label: "Open logs",
@@ -506,6 +555,7 @@ function setupAutoUpdater() {
     updateDownloaded = true;
     console.log("Update downloaded; ready to install.", downloadedUpdateVersion);
     log.info("Update downloaded; ready to install.", downloadedUpdateVersion);
+    store.set("updateSnoozedUntil", 0);
     refreshTrayMenu();
     notify(
       "Update ready",
@@ -513,6 +563,9 @@ function setupAutoUpdater() {
         ? `Version ${downloadedUpdateVersion} is ready. Restart to apply.`
         : "An update is ready. Restart to apply."
     );
+    // Start (or restart) the restart prompt + countdown.
+    startUpdateCountdownIfAllowed();
+    openUpdatePromptWindow();
   });
 
   autoUpdater.on("error", (err) => {
@@ -522,10 +575,172 @@ function setupAutoUpdater() {
     notify("Update error", `Update failed: ${String(err?.message || err)}`);
   });
 
-  autoUpdater.checkForUpdatesAndNotify().catch((e) => {
-    log.error("Startup update check failed:", e);
+  // Startup check (but avoid hammering if the app is restarted frequently).
+  checkForUpdatesIfAllowed({ ignoreSnooze: true })
+    .catch((e) => {
+      log.error("Startup update check failed:", e);
+    })
+    .finally(() => {
+      refreshTrayMenu();
+    });
+}
+
+function minutesFromNow(timestampMs) {
+  const delta = Math.max(0, timestampMs - Date.now());
+  return Math.max(1, Math.round(delta / 60000));
+}
+
+async function checkForUpdatesIfAllowed({ ignoreSnooze = false, force = false } = {}) {
+  if (!app.isPackaged) return { ok: false, reason: "not_packaged" };
+  const now = Date.now();
+  const lastCheckAt = Number(store.get("lastUpdateCheckAt") || 0);
+  if (!force && lastCheckAt && now - lastCheckAt < UPDATE_MIN_CHECK_GAP_MS) {
+    return { ok: false, reason: "recently_checked" };
+  }
+
+  const snoozedUntil = Number(store.get("updateSnoozedUntil") || 0);
+  if (!ignoreSnooze && snoozedUntil && now < snoozedUntil) {
+    return { ok: false, reason: "snoozed" };
+  }
+
+  store.set("lastUpdateCheckAt", now);
+  await autoUpdater.checkForUpdatesAndNotify();
+  return { ok: true };
+}
+
+function scheduleUpdateChecks() {
+  if (!app.isPackaged) return;
+
+  // Record the startup check time (even if it fails, we want to avoid hammering).
+  if (!Number(store.get("lastUpdateCheckAt") || 0)) {
+    store.set("lastUpdateCheckAt", Date.now());
+  }
+
+  setInterval(() => {
+    checkForUpdatesIfAllowed().catch((e) => {
+      log.error("Background update check failed:", e);
+    });
+  }, UPDATE_CHECK_INTERVAL_MS);
+}
+
+function snoozeUpdate(minutes) {
+  const until = Date.now() + Math.max(1, minutes) * 60 * 1000;
+  store.set("updateSnoozedUntil", until);
+  cancelUpdateCountdown();
+  refreshTrayMenu();
+  notify("Update snoozed", `We’ll remind you again in ${minutes} minutes.`);
+  closeUpdatePromptWindow();
+}
+
+function cancelUpdateCountdown() {
+  if (updateCountdownTimer) {
+    clearInterval(updateCountdownTimer);
+    updateCountdownTimer = null;
+  }
+  updateCountdownEndsAt = null;
+}
+
+function startUpdateCountdownIfAllowed() {
+  // Respect snooze.
+  const snoozedUntil = Number(store.get("updateSnoozedUntil") || 0);
+  if (snoozedUntil && Date.now() < snoozedUntil) {
+    refreshTrayMenu();
+    return;
+  }
+
+  cancelUpdateCountdown();
+  updateCountdownEndsAt = Date.now() + UPDATE_AUTO_RESTART_DELAY_MS;
+  updateCountdownTimer = setInterval(() => {
+    const remainingMs = updateCountdownEndsAt - Date.now();
+    sendUpdatePromptState();
+    if (remainingMs <= 0) {
+      cancelUpdateCountdown();
+      // If user is currently capturing, defer until the overlay closes.
+      if (overlayActive) {
+        updateDeferredInstall = true;
+        notify("Update ready", "Restart will happen right after your capture finishes.");
+        return;
+      }
+      try {
+        autoUpdater.quitAndInstall();
+      } catch (e) {
+        log.error("quitAndInstall failed:", e);
+      }
+    }
+  }, 1000);
+
+  sendUpdatePromptState();
+}
+
+function getUpdateCountdownSecondsRemaining() {
+  if (!updateCountdownEndsAt) return null;
+  return Math.max(0, Math.ceil((updateCountdownEndsAt - Date.now()) / 1000));
+}
+
+function closeUpdatePromptWindow() {
+  if (updatePromptWindow && !updatePromptWindow.isDestroyed()) {
+    updatePromptWindow.close();
+  }
+  updatePromptWindow = null;
+}
+
+function openUpdatePromptWindow() {
+  if (!updateDownloaded) return;
+  const snoozedUntil = Number(store.get("updateSnoozedUntil") || 0);
+  if (snoozedUntil && Date.now() < snoozedUntil) return;
+
+  if (updatePromptWindow && !updatePromptWindow.isDestroyed()) {
+    updatePromptWindow.show();
+    updatePromptWindow.focus();
+    sendUpdatePromptState();
+    return;
+  }
+
+  updatePromptWindow = new BrowserWindow({
+    width: 440,
+    height: 240,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    alwaysOnTop: true,
+    title: "Send to CRM — Update ready",
+    show: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+  updatePromptWindow.loadFile("update_prompt.html");
+  updatePromptWindow.on("closed", () => {
+    updatePromptWindow = null;
+  });
+  updatePromptWindow.webContents.on("did-finish-load", () => {
+    sendUpdatePromptState();
   });
 }
+
+function sendUpdatePromptState() {
+  if (!updatePromptWindow || updatePromptWindow.isDestroyed()) return;
+  updatePromptWindow.webContents.send("update:state", {
+    updateDownloaded: Boolean(updateDownloaded),
+    downloadedUpdateVersion: downloadedUpdateVersion || null,
+    countdownSeconds: getUpdateCountdownSecondsRemaining(),
+  });
+}
+
+ipcMain.handle("update:restartNow", () => {
+  try {
+    autoUpdater.quitAndInstall();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+ipcMain.handle("update:snooze", (event, minutes) => {
+  snoozeUpdate(Number(minutes || 0));
+  return { ok: true };
+});
 
 // Settings IPC
 ipcMain.handle("settings:get", () => {

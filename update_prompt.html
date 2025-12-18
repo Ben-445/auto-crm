@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Send to CRM — Update ready</title>
+    <style>
+      :root {
+        --bg: #0b0e14;
+        --panel: #121826;
+        --text: #e8eefc;
+        --muted: #9fb0d0;
+        --border: rgba(255, 255, 255, 0.08);
+        --accent: #6ea8fe;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          sans-serif;
+        color: var(--text);
+        background: radial-gradient(900px 500px at 20% 0%, #18213a 0%, var(--bg) 65%);
+      }
+      .wrap {
+        height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      .card {
+        width: 100%;
+        max-width: 520px;
+        background: rgba(18, 24, 38, 0.92);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .title {
+        font-weight: 800;
+        font-size: 16px;
+      }
+      .sub {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .countdown {
+        margin-top: 10px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .actions {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      button {
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(110, 168, 254, 0.16);
+        color: var(--text);
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: rgba(110, 168, 254, 0.28);
+        border-color: rgba(110, 168, 254, 0.35);
+      }
+      .small {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      code {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid var(--border);
+        padding: 2px 6px;
+        border-radius: 8px;
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="title" id="title">Update ready</div>
+        <div class="sub" id="sub">
+          A new version is downloaded and ready to install. Restart to apply the update.
+        </div>
+        <div class="countdown" id="countdown"></div>
+
+        <div class="actions">
+          <button class="primary" id="restartNow">Restart now</button>
+          <button id="snooze15">Snooze 15m</button>
+          <button id="snooze60">Snooze 1h</button>
+        </div>
+        <div class="small">
+          This will restart <code>Send to CRM</code> to apply the update.
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const { ipcRenderer } = require("electron");
+
+      const els = {
+        title: document.getElementById("title"),
+        countdown: document.getElementById("countdown"),
+        restartNow: document.getElementById("restartNow"),
+        snooze15: document.getElementById("snooze15"),
+        snooze60: document.getElementById("snooze60"),
+      };
+
+      function formatCountdown(seconds) {
+        if (seconds == null) return "";
+        const m = Math.floor(seconds / 60);
+        const s = String(seconds % 60).padStart(2, "0");
+        return `Auto-restarting in ${m}:${s} (unless you snooze).`;
+      }
+
+      ipcRenderer.on("update:state", (event, state) => {
+        const v = state?.downloadedUpdateVersion;
+        els.title.textContent = v ? `Update ready (${v})` : "Update ready";
+        els.countdown.textContent = formatCountdown(state?.countdownSeconds);
+      });
+
+      els.restartNow.addEventListener("click", async () => {
+        await ipcRenderer.invoke("update:restartNow");
+      });
+      els.snooze15.addEventListener("click", async () => {
+        await ipcRenderer.invoke("update:snooze", 15);
+        window.close();
+      });
+      els.snooze60.addEventListener("click", async () => {
+        await ipcRenderer.invoke("update:snooze", 60);
+        window.close();
+      });
+    </script>
+  </body>
+</html>
+
+
