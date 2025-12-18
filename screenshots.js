@@ -46,21 +46,30 @@ class Screenshots extends EventEmitter {
                 });
               const timestamp = new Date().getTime();
 
-              // IMPORTANT:
+              const pngBytes = croppedImage.toPNG();
+              this.emit("ok", pngBytes, this.bounds);
+
+              // Privacy-first default: do not persist screenshots to disk.
+              // Enable local saving only if explicitly requested via env var.
+              const shouldSave =
+                String(process.env.SAVE_SCREENSHOTS_LOCAL || "").trim() === "1";
+              if (!shouldSave) {
+                this.emit("afterSave", pngBytes, this.bounds, false);
+                return;
+              }
+
               // In packaged apps, `__dirname` points inside the asar bundle and is not writable.
               // Save to a user-writable directory instead (Pictures/Send to CRM by default).
               const baseDir = path.join(app.getPath("pictures"), "Send to CRM");
               const screenshotPath = path.join(baseDir, `screenshot_${timestamp}.png`);
-
               fs.mkdirSync(baseDir, { recursive: true });
-
-              fs.writeFile(screenshotPath, croppedImage.toPNG(), (error) => {
+              fs.writeFile(screenshotPath, pngBytes, (error) => {
                 if (error) {
+                  this.emit("afterSave", pngBytes, this.bounds, false);
                   this.emit("cancel", error);
                   return console.log("Error saving screenshot: ", error);
                 }
-                this.emit("ok", croppedImage.toPNG(), this.bounds);
-                this.emit("afterSave", croppedImage.toPNG(), this.bounds, true);
+                this.emit("afterSave", pngBytes, this.bounds, true);
                 // Show the saved file in the OS file manager.
                 shell.showItemInFolder(screenshotPath);
               });

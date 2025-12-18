@@ -55,15 +55,19 @@
     canvas.addEventListener('mousemove', (e) => {
       if (!isDrawing) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const width = e.clientX - startX;
-      const height = e.clientY - startY;
-      ctx.strokeRect(startX, startY, width, height);
-      selectedArea = { x: startX, y: startY, width, height };
+      const currentX = e.clientX;
+      const currentY = e.clientY;
+      const x = Math.min(startX, currentX);
+      const y = Math.min(startY, currentY);
+      const width = Math.abs(currentX - startX);
+      const height = Math.abs(currentY - startY);
+      ctx.strokeRect(x, y, width, height);
+      selectedArea = { x, y, width, height };
     });
 
     canvas.addEventListener('mouseup', (e) => {
       isDrawing = false;
-      if (selectedArea) {
+      if (selectedArea && selectedArea.width > 0 && selectedArea.height > 0) {
         controls.style.display = 'flex';
         controls.style.left = `${e.clientX + 10}px`;
         controls.style.top = `${e.clientY + 10}px`;

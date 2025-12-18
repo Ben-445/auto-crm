@@ -16,6 +16,7 @@ const path = require("path");
 const log = require("electron-log");
 const ElectronStore = require("electron-store");
 const Screenshots = require("./screenshots");
+const crypto = require("crypto");
 
 let mainWindow;
 let overlayWindow;
@@ -27,15 +28,20 @@ const screenshots = new Screenshots();
 
 const DEFAULT_SHORTCUT =
   process.platform === "darwin" ? "Command+Shift+S" : "Control+Shift+S";
+const DEFAULT_API_BASE_URL =
+  "https://ukjfvashhxcovonpweye.supabase.co/functions/v1";
 // electron-store can export either the constructor directly (CJS) or under `.default` (ESM interop).
 const Store = ElectronStore?.default ?? ElectronStore;
 const store = new Store({
   name: "settings",
   defaults: {
     authToken: "",
+    apiBaseUrl: DEFAULT_API_BASE_URL,
     shortcut: DEFAULT_SHORTCUT,
     startOnLogin: true,
     startOnLoginUserSet: false,
+    // Privacy: do not persist raw screenshots locally unless explicitly enabled.
+    saveScreenshotsLocally: false,
   },
 });
 
@@ -75,6 +81,143 @@ app.on("ready", () => {
 
   // (global shortcut registration is now driven by stored settings)
 });
+
+function getApiBaseUrl() {
+  const raw = String(store.get("apiBaseUrl") || DEFAULT_API_BASE_URL).trim();
+  return raw.replace(/\/+$/, "");
+}
+
+function getAuthToken() {
+  return String(store.get("authToken") || "").trim();
+}
+
+function getClientMetadata() {
+  return {
+    client_os: process.platform,
+    client_version: app.getVersion(),
+  };
+}
+
+function sha256Hex(buffer) {
+  return crypto.createHash("sha256").update(buffer).digest("hex");
+}
+
+async function fetchWithTimeout(url, options, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(id);
+  }
+}
+
+async function verifyDesktopToken(token) {
+  const apiBaseUrl = getApiBaseUrl();
+  const url = `${apiBaseUrl}/desktop-verify-token`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+    12000
+  );
+  if (res.ok) return { ok: true };
+  if (res.status === 401 || res.status === 403) {
+    return { ok: false, reason: "invalid_token" };
+  }
+  let bodyText = "";
+  try {
+    bodyText = await res.text();
+  } catch (e) {
+    // ignore
+  }
+  return { ok: false, reason: `verify_failed_${res.status}`, details: bodyText };
+}
+
+async function uploadScreenshotPng(pngBuffer, bounds) {
+  const token = getAuthToken();
+  if (!token) {
+    notify("Not paired", "Open Settings to add your desktop token.");
+    openSettingsWindow();
+    return { ok: false, reason: "not_paired" };
+  }
+
+  const apiBaseUrl = getApiBaseUrl();
+  const url = `${apiBaseUrl}/screenshot-capture`;
+  const capturedAtIso = new Date().toISOString();
+  const { client_os, client_version } = getClientMetadata();
+  const hash = sha256Hex(pngBuffer);
+
+  // FormData/Blob compatibility across Node/Electron versions.
+  let FormDataCtor = globalThis.FormData;
+  let BlobCtor = globalThis.Blob;
+  if (!FormDataCtor || !BlobCtor) {
+    try {
+      const undici = require("undici");
+      FormDataCtor = FormDataCtor || undici.FormData;
+      BlobCtor = BlobCtor || undici.Blob;
+    } catch (e) {
+      // keep as-is
+    }
+  }
+  if (!FormDataCtor || !BlobCtor) {
+    throw new Error("FormData/Blob not available in this runtime");
+  }
+
+  const form = new FormDataCtor();
+  const blob = new BlobCtor([pngBuffer], { type: "image/png" });
+  form.append("image", blob, `screenshot_${Date.now()}.png`);
+  form.append("captured_at", capturedAtIso);
+  form.append("client_os", client_os);
+  form.append("client_version", client_version);
+  form.append("bounds", JSON.stringify(bounds || null));
+  form.append("sha256", hash);
+
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: form,
+    },
+    20000
+  );
+
+  if (res.ok) {
+    let json = null;
+    try {
+      json = await res.json();
+    } catch (e) {
+      // ok
+    }
+    return { ok: true, response: json };
+  }
+
+  if (res.status === 401 || res.status === 403) {
+    // Token is invalid/revoked. Stop future sends until user re-pairs.
+    store.set("authToken", "");
+    notify(
+      "Token invalid",
+      "Your desktop token is invalid. Please re-pair in Settings."
+    );
+    openSettingsWindow();
+    return { ok: false, reason: "invalid_token" };
+  }
+
+  let bodyText = "";
+  try {
+    bodyText = await res.text();
+  } catch (e) {
+    // ignore
+  }
+  return { ok: false, reason: `upload_failed_${res.status}`, details: bodyText };
+}
 
 function canCaptureScreenOrPrompt() {
   if (process.platform !== "darwin") return true;
@@ -391,6 +534,7 @@ ipcMain.handle("settings:get", () => {
     platform: process.platform,
     defaultShortcut: DEFAULT_SHORTCUT,
     authToken: store.get("authToken") || "",
+    apiBaseUrl: getApiBaseUrl(),
     shortcut: store.get("shortcut") || DEFAULT_SHORTCUT,
     startOnLogin: Boolean(store.get("startOnLogin")),
     effectiveStartOnLogin: Boolean(loginSettings?.openAtLogin),
@@ -403,11 +547,30 @@ ipcMain.handle("settings:set", (event, partial) => {
   if (Object.prototype.hasOwnProperty.call(next, "authToken")) {
     store.set("authToken", String(next.authToken || ""));
   }
+  if (Object.prototype.hasOwnProperty.call(next, "apiBaseUrl")) {
+    store.set("apiBaseUrl", String(next.apiBaseUrl || DEFAULT_API_BASE_URL));
+  }
   if (Object.prototype.hasOwnProperty.call(next, "startOnLogin")) {
     store.set("startOnLogin", Boolean(next.startOnLogin));
     applyStartOnLoginFromStore();
   }
   return { ok: true };
+});
+
+ipcMain.handle("auth:pair", async (event, tokenRaw) => {
+  const token = String(tokenRaw || "").trim();
+  if (!token) return { ok: false, reason: "empty_token" };
+
+  try {
+    const result = await verifyDesktopToken(token);
+    if (!result.ok) {
+      return result;
+    }
+    store.set("authToken", token);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: "verify_exception", details: String(e?.message || e) };
+  }
 });
 
 ipcMain.handle("shortcut:set", (event, shortcutRaw) => {
@@ -485,5 +648,22 @@ ipcMain.on("cancel-selection", () => {
     if (!overlayWindow.isDestroyed()) {
       overlayWindow.close();
     }
+  }
+});
+
+// Screenshot -> upload pipeline
+screenshots.on("ok", async (pngBytes, bounds) => {
+  try {
+    const result = await uploadScreenshotPng(pngBytes, bounds);
+    if (result.ok) {
+      notify("Screenshot sent", "Your screenshot was uploaded successfully.");
+      log.info("Upload ok", result.response?.capture_id || "");
+    } else if (result.reason !== "invalid_token" && result.reason !== "not_paired") {
+      notify("Couldn’t send screenshot", "Please try again.");
+      log.warn("Upload failed", result.reason, result.details || "");
+    }
+  } catch (e) {
+    notify("Couldn’t send screenshot", "Please try again.");
+    log.error("Upload exception", e);
   }
 });

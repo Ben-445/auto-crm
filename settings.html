@@ -256,7 +256,7 @@
             <div class="label">Desktop token</div>
             <div>
               <textarea id="token" placeholder="Paste your token from the web app…"></textarea>
-              <div class="hint">Stored locally for now (backend validation later).</div>
+              <div class="hint">Verified with your web backend, then stored locally.</div>
             </div>
           </div>
           <div class="actions">
@@ -457,9 +457,35 @@
 
       els.saveToken.addEventListener("click", async () => {
         const token = (els.token.value || "").trim();
-        await ipcRenderer.invoke("settings:set", { authToken: token });
-        setStatus(Boolean(token));
-        msg(els.tokenMsg, token ? "Saved." : "Cleared.");
+        if (!token) {
+          await ipcRenderer.invoke("settings:set", { authToken: "" });
+          setStatus(false);
+          msg(els.tokenMsg, "Cleared.");
+          return;
+        }
+
+        els.saveToken.disabled = true;
+        msg(els.tokenMsg, "Verifying…");
+        try {
+          const result = await ipcRenderer.invoke("auth:pair", token);
+          if (result.ok) {
+            setStatus(true);
+            msg(els.tokenMsg, "Paired and saved.");
+          } else {
+            setStatus(false);
+            msg(
+              els.tokenMsg,
+              result.reason === "invalid_token"
+                ? "Invalid token. Please generate a new one in the web app."
+                : `Couldn’t verify token: ${result.reason || "unknown"}`
+            );
+          }
+        } catch (e) {
+          setStatus(false);
+          msg(els.tokenMsg, `Couldn’t verify token: ${String(e?.message || e)}`);
+        } finally {
+          els.saveToken.disabled = false;
+        }
       });
 
       els.clearToken.addEventListener("click", async () => {
