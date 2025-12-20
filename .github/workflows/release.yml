@@ -13,7 +13,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        # Pin Windows runner to avoid intermittent breakages on windows-latest
+        # (e.g. symlink privilege issues impacting electron-builder winCodeSign extraction).
+        os: [macos-latest, windows-2022]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repo
