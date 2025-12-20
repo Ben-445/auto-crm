@@ -41,15 +41,55 @@
     const ctx = canvas.getContext('2d');
     let isDrawing = false;
     let startX, startY, selectedArea;
+    let lastAnchorPoint = null;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    function resizeCanvasToWindow() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function positionControls(anchorX, anchorY) {
+      // Keep the controls close to the cursor, but never off-screen.
+      // We do "flip + clamp": try bottom-right, flip left/up if overflowing, then clamp.
+      const margin = 12;
+      const offset = 10;
+      const rect = controls.getBoundingClientRect();
+      const viewportW = window.innerWidth;
+      const viewportH = window.innerHeight;
+
+      const maxLeft = Math.max(margin, viewportW - rect.width - margin);
+      const maxTop = Math.max(margin, viewportH - rect.height - margin);
+
+      let left = anchorX + offset;
+      let top = anchorY + offset;
+
+      if (left + rect.width + margin > viewportW) {
+        left = anchorX - rect.width - offset;
+      }
+      if (top + rect.height + margin > viewportH) {
+        top = anchorY - rect.height - offset;
+      }
+
+      left = clamp(left, margin, maxLeft);
+      top = clamp(top, margin, maxTop);
+
+      controls.style.left = `${Math.round(left)}px`;
+      controls.style.top = `${Math.round(top)}px`;
+    }
+
+    resizeCanvasToWindow();
 
     canvas.addEventListener('mousedown', (e) => {
       isDrawing = true;
       startX = e.clientX;
       startY = e.clientY;
       controls.style.display = 'none';
+      lastAnchorPoint = null;
     });
 
     canvas.addEventListener('mousemove', (e) => {
@@ -69,8 +109,12 @@
       isDrawing = false;
       if (selectedArea && selectedArea.width > 0 && selectedArea.height > 0) {
         controls.style.display = 'flex';
-        controls.style.left = `${e.clientX + 10}px`;
-        controls.style.top = `${e.clientY + 10}px`;
+        lastAnchorPoint = { x: e.clientX, y: e.clientY };
+        // Ensure layout is calculated before measuring controls size.
+        requestAnimationFrame(() => {
+          if (!lastAnchorPoint) return;
+          positionControls(lastAnchorPoint.x, lastAnchorPoint.y);
+        });
       }
     });
 
@@ -87,6 +131,13 @@
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         ipcRenderer.send('cancel-selection');
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      resizeCanvasToWindow();
+      if (controls.style.display !== 'none' && lastAnchorPoint) {
+        requestAnimationFrame(() => positionControls(lastAnchorPoint.x, lastAnchorPoint.y));
       }
     });
   </script>
