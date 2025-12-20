@@ -56,6 +56,16 @@ if (!gotTheLock) {
   });
 }
 
+// Windows: help the OS associate our running process/window with the correct app identity/icon.
+// This improves taskbar/Alt-Tab icon consistency across updates.
+if (process.platform === "win32") {
+  try {
+    app.setAppUserModelId("com.micro.screenshotcrm");
+  } catch (e) {
+    // ignore
+  }
+}
+
 const DEFAULT_SHORTCUT =
   process.platform === "darwin" ? "Command+Shift+S" : "Control+Shift+S";
 const DEFAULT_API_BASE_URL =
@@ -510,11 +520,21 @@ function loadAppIcon() {
     "icon.png",
   ].filter(Boolean);
 
+  const baseCandidates = [
+    __dirname,
+    // Packaged app: app.getAppPath() points to .../resources/app.asar
+    app.getAppPath ? app.getAppPath() : null,
+    // Some environments resolve assets relative to the resources folder.
+    process.resourcesPath || null,
+  ].filter(Boolean);
+
   for (const file of candidateFiles) {
-    const iconPath = path.join(__dirname, "assets", "icons", file);
-    const image = nativeImage.createFromPath(iconPath);
-    if (!image.isEmpty()) {
-      return image;
+    for (const base of baseCandidates) {
+      const iconPath = path.join(base, "assets", "icons", file);
+      const image = nativeImage.createFromPath(iconPath);
+      if (!image.isEmpty()) {
+        return image;
+      }
     }
   }
 
@@ -728,6 +748,7 @@ function openUpdatePromptWindow() {
     maximizable: false,
     alwaysOnTop: true,
     title: "Send to CRM — Update ready",
+    icon: loadAppIcon(),
     show: true,
     webPreferences: {
       nodeIntegration: true,
