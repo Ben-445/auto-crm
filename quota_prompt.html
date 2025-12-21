@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Send to CRM — Upgrade</title>
+    <style>
+      :root {
+        --bg: #0b0e14;
+        --panel: #121826;
+        --text: #e8eefc;
+        --muted: #9fb0d0;
+        --border: rgba(255, 255, 255, 0.08);
+        --accent: #6ea8fe;
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          sans-serif;
+        color: var(--text);
+        background: radial-gradient(900px 500px at 20% 0%, #18213a 0%, var(--bg) 65%);
+      }
+      .wrap {
+        height: 100%;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      .card {
+        width: 100%;
+        max-width: 560px;
+        background: rgba(18, 24, 38, 0.92);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+      }
+      .title {
+        font-weight: 800;
+        font-size: 16px;
+      }
+      .sub {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .actions {
+        margin-top: 14px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      button {
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: rgba(110, 168, 254, 0.16);
+        color: var(--text);
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      button.primary {
+        background: rgba(110, 168, 254, 0.28);
+        border-color: rgba(110, 168, 254, 0.35);
+      }
+      .hint {
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      code {
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid var(--border);
+        padding: 2px 6px;
+        border-radius: 8px;
+        color: var(--text);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <div class="title">Upgrade required</div>
+        <div class="sub" id="message">
+          You've reached your monthly limit. Upgrade to Pro for unlimited screenshots.
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="upgradeBtn">Upgrade to Pro</button>
+          <button id="dismissBtn">Not now</button>
+        </div>
+
+        <div class="hint">
+          Manage your plan at <code id="urlCode">sendtocrm.com</code>.
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const { ipcRenderer } = require("electron");
+
+      const els = {
+        message: document.getElementById("message"),
+        upgradeBtn: document.getElementById("upgradeBtn"),
+        dismissBtn: document.getElementById("dismissBtn"),
+        urlCode: document.getElementById("urlCode"),
+      };
+
+      let actionUrl = null;
+
+      function safeHost(url) {
+        try {
+          return new URL(url).host;
+        } catch (e) {
+          return "sendtocrm.com";
+        }
+      }
+
+      ipcRenderer.on("quota:state", (event, state) => {
+        const msg = String(state?.userMessage || "").trim();
+        els.message.textContent =
+          msg ||
+          "You've reached your monthly limit. Upgrade to Pro for unlimited screenshots.";
+        actionUrl = state?.actionUrl || null;
+        const label = String(state?.actionLabel || "").trim();
+        els.upgradeBtn.textContent = label || "Upgrade to Pro";
+        els.urlCode.textContent = actionUrl ? safeHost(actionUrl) : "sendtocrm.com";
+        els.upgradeBtn.disabled = !actionUrl;
+      });
+
+      els.upgradeBtn.addEventListener("click", async () => {
+        if (!actionUrl) return;
+        await ipcRenderer.invoke("quota:openBilling", actionUrl);
+        window.close();
+      });
+
+      els.dismissBtn.addEventListener("click", () => window.close());
+    </script>
+  </body>
+</html>
+
+

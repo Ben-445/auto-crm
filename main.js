@@ -30,6 +30,8 @@ let updateCountdownEndsAt = null;
 let updateSnoozedUntil = null;
 let updateDeferredInstall = false;
 let overlayActive = false;
+let quotaPromptWindow = null;
+let lastQuotaPromptPayload = null;
 const screenshots = new Screenshots();
 
 // Single-instance lock: prevent multiple tray icons / processes.
@@ -245,7 +247,23 @@ async function uploadScreenshotPng(pngBuffer, bounds) {
     return { ok: true, response: json };
   }
 
-  if (res.status === 401 || res.status === 403) {
+  // Attempt to parse a structured error response.
+  // Use clone() so we can fall back to text even if JSON parsing fails.
+  let errorJson = null;
+  let errorText = "";
+  try {
+    errorJson = await res.clone().json();
+  } catch (e) {
+    // ignore
+  }
+  try {
+    errorText = await res.text();
+  } catch (e) {
+    // ignore
+  }
+
+  // Auth errors: only clear token for explicit invalid auth cases.
+  if (res.status === 401) {
     // Token is invalid/revoked. Stop future sends until user re-pairs.
     store.set("authToken", "");
     notify(
@@ -256,13 +274,54 @@ async function uploadScreenshotPng(pngBuffer, bounds) {
     return { ok: false, reason: "invalid_token" };
   }
 
-  let bodyText = "";
-  try {
-    bodyText = await res.text();
-  } catch (e) {
-    // ignore
+  // Quota exceeded (HTTP 403): do NOT clear token; prompt upgrade instead.
+  if (res.status === 403 && errorJson && errorJson.error === "quota_exceeded") {
+    const userMessage =
+      String(errorJson.user_message || errorJson.message || "").trim() ||
+      "You've reached your monthly limit. Upgrade to continue.";
+    const billingUrl =
+      String(errorJson.billing_url || errorJson?.action?.url || "").trim() || null;
+    const action =
+      errorJson?.action && typeof errorJson.action === "object"
+        ? {
+            type: errorJson.action.type || "open_url",
+            url: String(errorJson.action.url || billingUrl || "").trim() || null,
+            label: String(errorJson.action.label || "Upgrade to Pro").trim() || "Upgrade to Pro",
+          }
+        : {
+            type: "open_url",
+            url: billingUrl,
+            label: "Upgrade to Pro",
+          };
+
+    return {
+      ok: false,
+      reason: "quota_exceeded",
+      quota: {
+        current_count: errorJson.current_count,
+        quota: errorJson.quota,
+        message: errorJson.message,
+        user_message: userMessage,
+        billing_url: billingUrl,
+        action,
+      },
+    };
   }
-  return { ok: false, reason: `upload_failed_${res.status}`, details: bodyText };
+
+  // Other 403s are treated as generic failures (do not clear token).
+  if (res.status === 403) {
+    return {
+      ok: false,
+      reason: "forbidden",
+      details: errorJson ? JSON.stringify(errorJson) : errorText,
+    };
+  }
+
+  return {
+    ok: false,
+    reason: `upload_failed_${res.status}`,
+    details: errorJson ? JSON.stringify(errorJson) : errorText,
+  };
 }
 
 function canCaptureScreenOrPrompt() {
@@ -764,6 +823,60 @@ function openUpdatePromptWindow() {
   });
 }
 
+function openQuotaPromptWindow(payload) {
+  const actionUrl =
+    String(payload?.quota?.action?.url || payload?.quota?.billing_url || "").trim() ||
+    null;
+  const userMessage = String(payload?.quota?.user_message || "").trim();
+  const actionLabel =
+    String(payload?.quota?.action?.label || "Upgrade to Pro").trim() || "Upgrade to Pro";
+
+  lastQuotaPromptPayload = {
+    userMessage,
+    actionUrl,
+    actionLabel,
+  };
+
+  if (quotaPromptWindow && !quotaPromptWindow.isDestroyed()) {
+    quotaPromptWindow.show();
+    quotaPromptWindow.focus();
+    sendQuotaPromptState();
+    return;
+  }
+
+  quotaPromptWindow = new BrowserWindow({
+    width: 520,
+    height: 260,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    alwaysOnTop: true,
+    title: "Send to CRM — Upgrade",
+    icon: loadAppIcon(),
+    show: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    },
+  });
+  quotaPromptWindow.loadFile("quota_prompt.html");
+  quotaPromptWindow.on("closed", () => {
+    quotaPromptWindow = null;
+  });
+  quotaPromptWindow.webContents.on("did-finish-load", () => {
+    sendQuotaPromptState();
+  });
+}
+
+function sendQuotaPromptState() {
+  if (!quotaPromptWindow || quotaPromptWindow.isDestroyed()) return;
+  quotaPromptWindow.webContents.send("quota:state", {
+    userMessage: lastQuotaPromptPayload?.userMessage || "",
+    actionUrl: lastQuotaPromptPayload?.actionUrl || null,
+    actionLabel: lastQuotaPromptPayload?.actionLabel || "Upgrade to Pro",
+  });
+}
+
 function sendUpdatePromptState() {
   if (!updatePromptWindow || updatePromptWindow.isDestroyed()) return;
   updatePromptWindow.webContents.send("update:state", {
@@ -785,6 +898,17 @@ ipcMain.handle("update:restartNow", () => {
 ipcMain.handle("update:snooze", (event, minutes) => {
   snoozeUpdate(Number(minutes || 0));
   return { ok: true };
+});
+
+ipcMain.handle("quota:openBilling", (event, urlRaw) => {
+  const url = String(urlRaw || "").trim();
+  if (!url) return { ok: false, reason: "empty_url" };
+  try {
+    shell.openExternal(url);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
 });
 
 // Settings IPC
@@ -918,6 +1042,13 @@ screenshots.on("ok", async (pngBytes, bounds) => {
     if (result.ok) {
       notify("Screenshot sent", "Your screenshot was uploaded successfully.");
       log.info("Upload ok", result.response?.capture_id || "");
+    } else if (result.reason === "quota_exceeded") {
+      const msg =
+        String(result?.quota?.user_message || "").trim() ||
+        "You've reached your monthly limit. Upgrade to Pro for unlimited screenshots.";
+      notify("Upgrade required", msg);
+      openQuotaPromptWindow(result);
+      log.warn("Upload blocked: quota_exceeded");
     } else if (result.reason !== "invalid_token" && result.reason !== "not_paired") {
       notify("Couldn’t send screenshot", "Please try again.");
       log.warn("Upload failed", result.reason, result.details || "");
