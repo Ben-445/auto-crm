@@ -4,26 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Send to CRM — Update ready</title>
+    <link rel="stylesheet" href="assets/theme.css" />
     <style>
-      :root {
-        --bg: #0b0e14;
-        --panel: #121826;
-        --text: #e8eefc;
-        --muted: #9fb0d0;
-        --border: rgba(255, 255, 255, 0.08);
-        --accent: #6ea8fe;
-      }
       html,
       body {
         height: 100%;
         margin: 0;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
-          sans-serif;
-        color: var(--text);
-        background: radial-gradient(900px 500px at 20% 0%, #18213a 0%, var(--bg) 65%);
       }
       .wrap {
-        height: 100%;
+        height: calc(100% - 40px);
         display: grid;
         place-items: center;
         padding: 16px;
@@ -32,10 +21,11 @@
       .card {
         width: 100%;
         max-width: 520px;
-        background: rgba(18, 24, 38, 0.92);
+        background: rgba(255, 255, 255, 0.92);
         border: 1px solid var(--border);
-        border-radius: 12px;
+        border-radius: var(--radius);
         padding: 16px;
+        box-shadow: var(--shadow);
       }
       .title {
         font-weight: 800;
@@ -59,16 +49,12 @@
         flex-wrap: wrap;
       }
       button {
-        border-radius: 10px;
-        border: 1px solid var(--border);
-        background: rgba(110, 168, 254, 0.16);
-        color: var(--text);
-        padding: 10px 12px;
-        cursor: pointer;
+        border-radius: 12px;
       }
       button.primary {
-        background: rgba(110, 168, 254, 0.28);
-        border-color: rgba(110, 168, 254, 0.35);
+        background: var(--accent);
+        color: var(--accentText);
+        border-color: rgba(11, 18, 32, 0.35);
       }
       .small {
         font-size: 12px;
@@ -76,15 +62,17 @@
         margin-top: 10px;
       }
       code {
-        background: rgba(0, 0, 0, 0.25);
-        border: 1px solid var(--border);
-        padding: 2px 6px;
-        border-radius: 8px;
-        color: var(--text);
+        border-radius: 10px;
       }
     </style>
   </head>
-  <body>
+  <body class="hasTopbar">
+    <div class="appTopbar">
+      <div class="appTopbarTitle">Send to CRM</div>
+      <div class="appTopbarActions">
+        <button class="windowBtn close" id="winClose" aria-label="Close">×</button>
+      </div>
+    </div>
     <div class="wrap">
       <div class="card">
         <div class="title" id="title">Update ready</div>
@@ -113,6 +101,7 @@
         restartNow: document.getElementById("restartNow"),
         snooze15: document.getElementById("snooze15"),
         snooze60: document.getElementById("snooze60"),
+        winClose: document.getElementById("winClose"),
       };
 
       function formatCountdown(seconds) {
@@ -138,6 +127,10 @@
       els.snooze60.addEventListener("click", async () => {
         await ipcRenderer.invoke("update:snooze", 60);
         window.close();
+      });
+
+      els.winClose.addEventListener("click", async () => {
+        await ipcRenderer.invoke("window:close");
       });
     </script>
   </body>

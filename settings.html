@@ -4,26 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Send to CRM — Settings</title>
+    <link rel="stylesheet" href="assets/theme.css" />
     <style>
-      :root {
-        --bg: #0b0e14;
-        --panel: #121826;
-        --text: #e8eefc;
-        --muted: #9fb0d0;
-        --border: rgba(255, 255, 255, 0.08);
-        --accent: #6ea8fe;
-        --danger: #ff6b6b;
-        --ok: #2dd4bf;
-      }
-
       html,
       body {
         height: 100%;
         margin: 0;
-        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
-          sans-serif;
-        color: var(--text);
-        background: radial-gradient(1200px 800px at 20% 0%, #18213a 0%, var(--bg) 60%);
       }
 
       .container {
@@ -50,7 +36,7 @@
 
       .sidebar {
         border-right: 1px solid var(--border);
-        background: rgba(0, 0, 0, 0.12);
+        background: rgba(11, 18, 32, 0.03);
         display: flex;
         flex-direction: column;
       }
@@ -66,12 +52,12 @@
         width: 100%;
         text-align: left;
         padding: 10px 12px;
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(11, 18, 32, 0.04);
       }
 
       .nav button.active {
-        background: rgba(110, 168, 254, 0.22);
-        border-color: rgba(110, 168, 254, 0.35);
+        background: rgba(11, 18, 32, 0.08);
+        border-color: rgba(11, 18, 32, 0.18);
       }
 
       .content {
@@ -80,10 +66,11 @@
       }
 
       .card {
-        background: rgba(18, 24, 38, 0.92);
+        background: rgba(255, 255, 255, 0.92);
         border: 1px solid var(--border);
         border-radius: 12px;
         padding: 16px;
+        box-shadow: var(--shadow);
       }
 
       .card h2 {
@@ -110,7 +97,7 @@
         box-sizing: border-box;
         border-radius: 10px;
         border: 1px solid var(--border);
-        background: rgba(0, 0, 0, 0.2);
+        background: rgba(11, 18, 32, 0.03);
         color: var(--text);
         padding: 10px 12px;
         outline: none;
@@ -134,20 +121,22 @@
       button {
         border-radius: 10px;
         border: 1px solid var(--border);
-        background: rgba(110, 168, 254, 0.16);
+        background: rgba(11, 18, 32, 0.06);
         color: var(--text);
         padding: 10px 12px;
         cursor: pointer;
       }
 
       button.primary {
-        background: rgba(110, 168, 254, 0.26);
-        border-color: rgba(110, 168, 254, 0.35);
+        background: var(--accent);
+        color: var(--accentText);
+        border-color: rgba(11, 18, 32, 0.35);
       }
 
       button.danger {
-        background: rgba(255, 107, 107, 0.14);
-        border-color: rgba(255, 107, 107, 0.35);
+        background: rgba(180, 35, 24, 0.08);
+        border-color: rgba(180, 35, 24, 0.22);
+        color: rgba(120, 13, 8, 1);
       }
 
       .pill {
@@ -158,20 +147,20 @@
         padding: 6px 10px;
         border-radius: 999px;
         border: 1px solid var(--border);
-        background: rgba(0, 0, 0, 0.2);
+        background: rgba(11, 18, 32, 0.03);
         color: var(--muted);
       }
 
       .pill.ok {
         color: var(--ok);
-        border-color: rgba(45, 212, 191, 0.35);
-        background: rgba(45, 212, 191, 0.08);
+        border-color: rgba(6, 122, 106, 0.28);
+        background: rgba(6, 122, 106, 0.08);
       }
 
       .pill.bad {
         color: var(--danger);
-        border-color: rgba(255, 107, 107, 0.35);
-        background: rgba(255, 107, 107, 0.08);
+        border-color: rgba(180, 35, 24, 0.22);
+        background: rgba(180, 35, 24, 0.08);
       }
 
       .hint {
@@ -214,13 +203,13 @@
           "Liberation Mono", "Courier New", monospace;
         font-size: 12px;
         border: 1px solid var(--border);
-        background: rgba(0, 0, 0, 0.25);
+        background: rgba(11, 18, 32, 0.04);
         padding: 10px 12px;
         border-radius: 10px;
       }
 
       code {
-        background: rgba(0, 0, 0, 0.25);
+        background: rgba(11, 18, 32, 0.04);
         border: 1px solid var(--border);
         padding: 2px 6px;
         border-radius: 8px;
@@ -228,7 +217,14 @@
       }
     </style>
   </head>
-  <body>
+  <body class="hasTopbar">
+    <div class="appTopbar">
+      <div class="appTopbarTitle">Send to CRM</div>
+      <div class="appTopbarActions">
+        <button class="windowBtn" id="winMin" aria-label="Minimize">—</button>
+        <button class="windowBtn close" id="winClose" aria-label="Close">×</button>
+      </div>
+    </div>
     <div class="container">
       <div class="sidebar">
         <div class="header">
@@ -256,7 +252,12 @@
             <div class="label">Desktop token</div>
             <div>
               <textarea id="token" placeholder="Paste your token from the web app…"></textarea>
-              <div class="hint">Verified with your web backend, then stored locally.</div>
+              <div class="hint">
+                Verified with your web backend, then stored locally.
+                <button class="linkBtn" id="openConnect" type="button">
+                  Get your desktop token
+                </button>
+              </div>
             </div>
           </div>
           <div class="actions">
@@ -328,6 +329,8 @@
       const { ipcRenderer } = require("electron");
 
       const els = {
+        winClose: document.getElementById("winClose"),
+        winMin: document.getElementById("winMin"),
         statusPill: document.getElementById("statusPill"),
         tabAccount: document.getElementById("tabAccount"),
         tabShortcut: document.getElementById("tabShortcut"),
@@ -343,6 +346,7 @@
         saveToken: document.getElementById("saveToken"),
         clearToken: document.getElementById("clearToken"),
         tokenMsg: document.getElementById("tokenMsg"),
+        openConnect: document.getElementById("openConnect"),
 
         currentShortcut: document.getElementById("currentShortcut"),
         shortcutCapture: document.getElementById("shortcutCapture"),
@@ -364,9 +368,11 @@
         if (paired) {
           els.statusPill.textContent = "Paired";
           els.statusPill.classList.add("ok");
+          if (els.openConnect) els.openConnect.style.display = "none";
         } else {
           els.statusPill.textContent = "Not paired";
           els.statusPill.classList.add("bad");
+          if (els.openConnect) els.openConnect.style.display = "inline-flex";
         }
       }
 
@@ -437,6 +443,7 @@
 
       async function load() {
         const state = await ipcRenderer.invoke("settings:get");
+        document.body.dataset.platform = state.platform || "";
         setStatus(Boolean(state.authToken));
         els.token.value = state.authToken || "";
         els.osPill.textContent = osLabel(state.platform);
@@ -493,6 +500,18 @@
         await ipcRenderer.invoke("settings:set", { authToken: "" });
         setStatus(false);
         msg(els.tokenMsg, "Cleared.");
+      });
+
+      // Window chrome (frameless)
+      els.winClose?.addEventListener("click", async () => {
+        await ipcRenderer.invoke("window:close");
+      });
+      els.winMin?.addEventListener("click", async () => {
+        await ipcRenderer.invoke("window:minimize");
+      });
+
+      els.openConnect?.addEventListener("click", async () => {
+        await ipcRenderer.invoke("connect:open");
       });
 
       els.applyShortcut.addEventListener("click", async () => {

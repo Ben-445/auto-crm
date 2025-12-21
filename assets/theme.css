@@ -1,0 +1,162 @@
+:root {
+  /* Approximate the live site palette (light, clean, navy accents) */
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --text: #0b1220;
+  --muted: #5b6475;
+  --border: rgba(15, 23, 42, 0.12);
+  --accent: #0b1220;
+  --accentText: #ffffff;
+  --danger: #b42318;
+  --ok: #067a6a;
+
+  --shadow: 0 18px 60px rgba(2, 6, 23, 0.12);
+  --radius: 14px;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: radial-gradient(900px 650px at 50% -20%, rgba(11, 18, 32, 0.06) 0%, #ffffff 60%);
+}
+
+body.hasTopbar {
+  padding-top: 40px;
+  box-sizing: border-box;
+}
+
+/* Frameless window top bar */
+.appTopbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.88);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  -webkit-app-region: drag;
+}
+
+.appTopbarTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: rgba(11, 18, 32, 0.8);
+}
+
+.appTopbarActions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.windowBtn {
+  width: 34px;
+  height: 26px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(11, 18, 32, 0.04);
+  color: rgba(11, 18, 32, 0.85);
+  cursor: pointer;
+  line-height: 1;
+  font-size: 16px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.windowBtn.close:hover {
+  background: rgba(180, 35, 24, 0.1);
+  border-color: rgba(180, 35, 24, 0.25);
+}
+
+/* Generic UI pieces */
+.wrap {
+  height: calc(100% - 40px);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.card {
+  width: 100%;
+  max-width: 560px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.title {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.sub {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+button {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(11, 18, 32, 0.06);
+  color: var(--text);
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--accentText);
+  border-color: rgba(11, 18, 32, 0.35);
+}
+
+button.danger {
+  background: rgba(180, 35, 24, 0.08);
+  border-color: rgba(180, 35, 24, 0.22);
+  color: rgba(120, 13, 8, 1);
+}
+
+.linkBtn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin-left: 6px;
+  color: rgba(11, 18, 32, 0.9);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+code {
+  background: rgba(11, 18, 32, 0.04);
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  border-radius: 10px;
+  color: rgba(11, 18, 32, 0.9);
+}
+
+

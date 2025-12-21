@@ -18,6 +18,9 @@ const ElectronStore = require("electron-store");
 const Screenshots = require("./screenshots");
 const crypto = require("crypto");
 
+const BILLING_URL = "https://sendtocrm.com/settings/billing";
+const CONNECT_URL = "https://www.sendtocrm.com/connect-desktop";
+
 let mainWindow;
 let overlayWindow;
 let settingsWindow = null;
@@ -279,13 +282,13 @@ async function uploadScreenshotPng(pngBuffer, bounds) {
     const userMessage =
       String(errorJson.user_message || errorJson.message || "").trim() ||
       "You've reached your monthly limit. Upgrade to continue.";
-    const billingUrl =
-      String(errorJson.billing_url || errorJson?.action?.url || "").trim() || null;
+    // Always use our canonical billing URL (ignore any backend-provided domains).
+    const billingUrl = BILLING_URL;
     const action =
       errorJson?.action && typeof errorJson.action === "object"
         ? {
             type: errorJson.action.type || "open_url",
-            url: String(errorJson.action.url || billingUrl || "").trim() || null,
+            url: billingUrl,
             label: String(errorJson.action.label || "Upgrade to Pro").trim() || "Upgrade to Pro",
           }
         : {
@@ -442,11 +445,20 @@ function openSettingsWindow() {
     title: "Send to CRM — Settings",
     icon: appIcon,
     show: true,
+    frame: false,
+    titleBarStyle: process.platform === "darwin" ? "hidden" : undefined,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
+
+  try {
+    settingsWindow.setMenuBarVisibility(false);
+    settingsWindow.setAutoHideMenuBar(true);
+  } catch (e) {
+    // ignore
+  }
 
   settingsWindow.loadFile("settings.html");
   settingsWindow.on("closed", () => {
@@ -809,11 +821,19 @@ function openUpdatePromptWindow() {
     title: "Send to CRM — Update ready",
     icon: loadAppIcon(),
     show: true,
+    frame: false,
+    titleBarStyle: process.platform === "darwin" ? "hidden" : undefined,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
+  try {
+    updatePromptWindow.setMenuBarVisibility(false);
+    updatePromptWindow.setAutoHideMenuBar(true);
+  } catch (e) {
+    // ignore
+  }
   updatePromptWindow.loadFile("update_prompt.html");
   updatePromptWindow.on("closed", () => {
     updatePromptWindow = null;
@@ -824,9 +844,7 @@ function openUpdatePromptWindow() {
 }
 
 function openQuotaPromptWindow(payload) {
-  const actionUrl =
-    String(payload?.quota?.action?.url || payload?.quota?.billing_url || "").trim() ||
-    null;
+  const actionUrl = BILLING_URL;
   const userMessage = String(payload?.quota?.user_message || "").trim();
   const actionLabel =
     String(payload?.quota?.action?.label || "Upgrade to Pro").trim() || "Upgrade to Pro";
@@ -854,11 +872,19 @@ function openQuotaPromptWindow(payload) {
     title: "Send to CRM — Upgrade",
     icon: loadAppIcon(),
     show: true,
+    frame: false,
+    titleBarStyle: process.platform === "darwin" ? "hidden" : undefined,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
+  try {
+    quotaPromptWindow.setMenuBarVisibility(false);
+    quotaPromptWindow.setAutoHideMenuBar(true);
+  } catch (e) {
+    // ignore
+  }
   quotaPromptWindow.loadFile("quota_prompt.html");
   quotaPromptWindow.on("closed", () => {
     quotaPromptWindow = null;
@@ -905,6 +931,35 @@ ipcMain.handle("quota:openBilling", (event, urlRaw) => {
   if (!url) return { ok: false, reason: "empty_url" };
   try {
     shell.openExternal(url);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+ipcMain.handle("connect:open", () => {
+  try {
+    shell.openExternal(CONNECT_URL);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+ipcMain.handle("window:close", (event) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed()) win.close();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, reason: String(e?.message || e) };
+  }
+});
+
+ipcMain.handle("window:minimize", (event) => {
+  try {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (win && !win.isDestroyed()) win.minimize();
     return { ok: true };
   } catch (e) {
     return { ok: false, reason: String(e?.message || e) };
