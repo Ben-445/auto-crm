@@ -56,7 +56,7 @@ EventEmitter-based class that:
 ### Authentication & API
 
 - Token-based auth stored in electron-store
-- Backend API base URL: `https://ukjfvashhxcovonpweye.supabase.co/functions/v1`
+- Backend API base URL: `https://ifkhbzakjucaiwoizjux.supabase.co/functions/v1`
 - Key endpoints:
   - `POST /desktop-verify-token` - Validates desktop token during pairing
   - `POST /screenshot-capture` - Uploads screenshot with metadata (FormData with image, bounds, timestamp, client metadata)

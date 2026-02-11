@@ -74,7 +74,7 @@ if (process.platform === "win32") {
 const DEFAULT_SHORTCUT =
   process.platform === "darwin" ? "Command+Shift+S" : "Control+Shift+S";
 const DEFAULT_API_BASE_URL =
-  "https://ukjfvashhxcovonpweye.supabase.co/functions/v1";
+  "https://ifkhbzakjucaiwoizjux.supabase.co/functions/v1";
 const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 const UPDATE_MIN_CHECK_GAP_MS = 30 * 60 * 1000; // 30m
 const UPDATE_AUTO_RESTART_DELAY_MS = 5 * 60 * 1000; // 5m
@@ -94,6 +94,13 @@ const store = new Store({
     updateSnoozedUntil: 0,
   },
 });
+
+// Migrate from old Supabase backend to new one (Feb 2026).
+const OLD_API_BASE_URL = "https://ukjfvashhxcovonpweye.supabase.co/functions/v1";
+if (store.get("apiBaseUrl") === OLD_API_BASE_URL) {
+  store.set("apiBaseUrl", DEFAULT_API_BASE_URL);
+  log.info("Migrated apiBaseUrl from old backend to new backend");
+}
 
 app.on("ready", () => {
   const { width, height } = screen.getPrimaryDisplay().workAreaSize;
