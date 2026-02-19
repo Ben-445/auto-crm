@@ -369,16 +369,35 @@ function registerShortcutFromStore() {
 
   const ok = globalShortcut.register(shortcut, onShortcutPressed);
   if (!ok) {
-    console.warn("Failed to register shortcut:", shortcut);
-    // Fallback to default if the saved shortcut is invalid/unavailable.
+    log.warn("Failed to register shortcut:", shortcut);
+    // Fall back to default for this session, but do NOT overwrite the saved preference.
     if (shortcut !== DEFAULT_SHORTCUT) {
-      store.set("shortcut", DEFAULT_SHORTCUT);
       globalShortcut.register(DEFAULT_SHORTCUT, onShortcutPressed);
     }
+    // Retry the user's shortcut after a delay (startup race condition).
+    setTimeout(() => {
+      try {
+        globalShortcut.unregisterAll();
+        const retryOk = globalShortcut.register(shortcut, onShortcutPressed);
+        if (retryOk) {
+          log.info("Shortcut registered on retry:", shortcut);
+        } else {
+          log.warn("Shortcut retry also failed, staying on default:", shortcut);
+          globalShortcut.register(DEFAULT_SHORTCUT, onShortcutPressed);
+        }
+      } catch (e) {
+        log.warn("Shortcut retry error:", e?.message || e);
+        globalShortcut.register(DEFAULT_SHORTCUT, onShortcutPressed);
+      }
+    }, 3000);
   }
 }
 
 function applyStartOnLoginFromStore() {
+  if (!app.isPackaged) {
+    log.info("Skipping start-on-login registration in development mode");
+    return;
+  }
   const openAtLogin = Boolean(store.get("startOnLogin"));
   try {
     app.setLoginItemSettings({
